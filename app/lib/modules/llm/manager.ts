@@ -12,8 +12,11 @@ export class LLMManager {
   private _env: Record<string, string> = {};
 
   private constructor(_env: Record<string, string>) {
-    this._registerProvidersFromDirectory();
+    // Set env FIRST so _registerProvidersFromDirectory can honor NIMBUS_ONLY.
+    // Previously registration ran before _env was assigned, so the NIMBUS_ONLY
+    // gate never fired and all 22 upstream providers registered.
     this._env = _env;
+    this._registerProvidersFromDirectory();
   }
 
   static getInstance(env: Record<string, string> = {}): LLMManager {
