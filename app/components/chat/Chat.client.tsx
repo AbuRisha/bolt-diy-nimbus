@@ -12,6 +12,7 @@ import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } fro
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
+import NimbusCompanion from './NimbusCompanion';
 import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
@@ -40,6 +41,9 @@ export function Chat() {
     workbenchStore.setReloadedMessages(initialMessages.map((m) => m.id));
   }, [initialMessages]);
 
+  const streaming = useStore(streamingState);
+  const companionState = streaming ? 'building' : ready ? 'ready' : 'thinking';
+
   return (
     <>
       {ready && (
@@ -51,6 +55,7 @@ export function Chat() {
           importChat={importChat}
         />
       )}
+      <NimbusCompanion state={companionState} />
     </>
   );
 }

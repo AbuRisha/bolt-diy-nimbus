@@ -19,4 +19,9 @@ interface Env {
   XAI_API_KEY: string;
   PERPLEXITY_API_KEY: string;
   AWS_BEDROCK_CONFIG: string;
+  NIMBUS_API_KEY: string;
+  NIMBUS_API_BASE_URL: string;
+  NIMBUS_ONLY: string;
+  DEFAULT_PROVIDER: string;
+  DEFAULT_MODEL: string;
 }
