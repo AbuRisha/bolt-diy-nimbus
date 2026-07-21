@@ -38,9 +38,17 @@ export class LLMManager {
        */
 
       // Look for exported classes that extend BaseProvider
+      // Nimbus-only mode: when NIMBUS_ONLY=true env is set, register only Nimbus
+      // so the customer picker exposes just the SpiderSense catalog.
+      const nimbusOnly = (this._env?.NIMBUS_ONLY || (typeof process !== 'undefined' && process.env?.NIMBUS_ONLY)) === 'true';
+
       for (const exportedItem of Object.values(providers)) {
         if (typeof exportedItem === 'function' && exportedItem.prototype instanceof BaseProvider) {
           const provider = new exportedItem();
+
+          if (nimbusOnly && provider.name !== 'Nimbus') {
+            continue;
+          }
 
           try {
             this.registerProvider(provider);
