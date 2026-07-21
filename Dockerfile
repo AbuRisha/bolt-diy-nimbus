@@ -74,6 +74,10 @@ RUN mkdir -p /root/.config/.wrangler && \
 # Make bindings script executable
 RUN chmod +x /app/bindings.sh
 
+# CRITICAL: wrangler is a devDep; NODE_ENV=production in base stage kept pnpm
+# from installing it. Install it globally here so 'wrangler pages dev' works.
+RUN npm install -g wrangler@3.114.15
+
 EXPOSE 5173
 
 # Healthcheck for deployment platforms
