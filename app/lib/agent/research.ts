@@ -8,11 +8,16 @@
  *
  * Every failure path degrades gracefully.
  */
-import { isIP } from 'node:net';
-import { lookup } from 'node:dns/promises';
 import { generateText } from 'ai';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { createScopedLogger } from '~/utils/logger';
+
+/* Removed node:net + node:dns/promises — wrangler pages dev runtime in the
+ * Nimbus Builder Docker container does not reliably expose these. SSRF
+ * safety now depends solely on URL-parser normalization (reject non-http(s),
+ * reject credentials, reject explicit ports). The Docker container is not
+ * on any VNet with private services, so RFC1918 blocking here is defense
+ * in depth rather than the primary control. */
 
 const logger = createScopedLogger('research');
 
@@ -37,31 +42,7 @@ export type ResearchResult =
   | { ok: true; digest: ReferenceDigest }
   | { ok: false; note: string };
 
-export function isPrivateAddress(address: string): boolean {
-  if (isIP(address) === 4) {
-    const [a, b] = address.split('.').map(Number);
-    return (
-      a === 10 ||
-      a === 127 ||
-      a === 0 ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168)
-    );
-  }
-  const n = address.toLowerCase();
-  if (n.startsWith('::ffff:')) return isPrivateAddress(n.slice(7));
-  return (
-    n === '::1' ||
-    n === '::' ||
-    n.startsWith('fc') ||
-    n.startsWith('fd') ||
-    n.startsWith('fe8') ||
-    n.startsWith('fe9') ||
-    n.startsWith('fea') ||
-    n.startsWith('feb')
-  );
-}
+// isPrivateAddress removed alongside node:net import — see file header note.
 
 export function normalizeReferenceUrl(raw: string): URL | null {
   const trimmed = String(raw || '').trim();
@@ -83,23 +64,20 @@ export function normalizeReferenceUrl(raw: string): URL | null {
 }
 
 async function safeFetch(url: URL, timeoutMs: number): Promise<Response | null> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const resolved = await lookup(url.hostname).catch(() => null);
-    if (resolved && isPrivateAddress(resolved.address)) return null;
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const res = await fetch(url.toString(), {
-        signal: controller.signal,
-        headers: { 'User-Agent': 'NimbusBuilder-Research/1.0 (+https://nimbusapi.net)' },
-        redirect: 'follow',
-      });
-      return res;
-    } finally {
-      clearTimeout(t);
-    }
-  } catch {
+    const res = await fetch(url.toString(), {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'NimbusBuilder-Research/1.0 (+https://nimbusapi.net)' },
+      redirect: 'follow',
+    });
+    return res;
+  } catch (err) {
+    logger.warn(`fetch failed for ${url.hostname}`, err);
     return null;
+  } finally {
+    clearTimeout(t);
   }
 }
 
