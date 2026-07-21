@@ -23,8 +23,17 @@ export class LLMManager {
     if (!LLMManager._instance) {
       LLMManager._instance = new LLMManager(env);
     } else if (Object.keys(env).length > 0) {
-      // Update env on subsequent calls so Cloudflare Workers get fresh bindings
+      const oldNimbusOnly = LLMManager._instance._env?.NIMBUS_ONLY;
       LLMManager._instance._env = env;
+
+      // Re-register when the NIMBUS_ONLY flag transitions (or first arrives)
+      // so the filter takes effect even when the first getInstance() call
+      // happened at module-load with empty env.
+      if (env.NIMBUS_ONLY !== oldNimbusOnly) {
+        LLMManager._instance._providers.clear();
+        LLMManager._instance._modelList = [];
+        LLMManager._instance._registerProvidersFromDirectory();
+      }
     }
 
     return LLMManager._instance;
