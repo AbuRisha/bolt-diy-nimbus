@@ -33,6 +33,7 @@ import { ChatBox } from './ChatBox';
 import type { DesignScheme } from '~/types/design-scheme';
 import type { ElementInfo } from '~/components/workbench/Inspector';
 import LlmErrorAlert from './LLMApiAlert';
+import { ClarifyChips, type ClarifyQuestion } from './ClarifyChips';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -146,6 +147,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
     const expoUrl = useStore(expoUrlAtom);
     const [qrModalOpen, setQrModalOpen] = useState(false);
+    const [clarifyData, setClarifyData] = useState<{
+      questions: ClarifyQuestion[];
+      pendingInput: string;
+      pendingEvent: React.UIEvent;
+    } | null>(null);
+    const [clarifyLoading, setClarifyLoading] = useState(false);
 
     useEffect(() => {
       if (expoUrl) {
@@ -268,25 +275,90 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
-    const handleSendMessage = (event: React.UIEvent, messageInput?: string) => {
-      if (sendMessage) {
-        sendMessage(event, messageInput);
-        setSelectedElement?.(null);
+    const finalizeSend = (event: React.UIEvent, messageInput?: string) => {
+      if (!sendMessage) {
+        return;
+      }
 
-        if (recognition) {
-          recognition.abort(); // Stop current recognition
-          setTranscript(''); // Clear transcript
-          setIsListening(false);
+      sendMessage(event, messageInput);
+      setSelectedElement?.(null);
 
-          // Clear the input by triggering handleInputChange with empty value
-          if (handleInputChange) {
-            const syntheticEvent = {
-              target: { value: '' },
-            } as React.ChangeEvent<HTMLTextAreaElement>;
-            handleInputChange(syntheticEvent);
-          }
+      if (recognition) {
+        recognition.abort();
+        setTranscript('');
+        setIsListening(false);
+
+        if (handleInputChange) {
+          const syntheticEvent = {
+            target: { value: '' },
+          } as React.ChangeEvent<HTMLTextAreaElement>;
+          handleInputChange(syntheticEvent);
         }
       }
+    };
+
+    const handleSendMessage = (event: React.UIEvent, messageInput?: string) => {
+      if (!sendMessage) {
+        return;
+      }
+
+      const effectiveInput = (messageInput ?? input ?? '').trim();
+
+      // First-message clarify hook: only fire on the very first user turn,
+      // when the prompt is substantive enough to be worth clarifying, and only
+      // if we're not already showing chips / loading them.
+      if (!chatStarted && !clarifyData && !clarifyLoading && effectiveInput.length >= 12) {
+        setClarifyLoading(true);
+        fetch('/api/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: effectiveInput }),
+        })
+          .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`plan ${r.status}`))))
+          .then((data: { mode?: string; questions?: ClarifyQuestion[] }) => {
+            if (data && data.mode === 'questions' && Array.isArray(data.questions) && data.questions.length > 0) {
+              setClarifyData({ questions: data.questions, pendingInput: effectiveInput, pendingEvent: event });
+              setClarifyLoading(false);
+              return;
+            }
+
+            setClarifyLoading(false);
+            finalizeSend(event, messageInput);
+          })
+          .catch((err) => {
+            console.warn('[clarify] /api/plan failed, sending direct:', err);
+            setClarifyLoading(false);
+            finalizeSend(event, messageInput);
+          });
+        return;
+      }
+
+      finalizeSend(event, messageInput);
+    };
+
+    const onClarifyAnswered = ({ answers, skipped }: { answers: Record<string, string>; skipped?: boolean }) => {
+      if (!clarifyData) {
+        return;
+      }
+
+      const { questions, pendingInput, pendingEvent } = clarifyData;
+      let folded = pendingInput;
+
+      if (!skipped) {
+        const lines = questions
+          .map((q) => {
+            const a = answers[q.id];
+            return a ? `- ${q.question} ${a}` : null;
+          })
+          .filter(Boolean) as string[];
+
+        if (lines.length > 0) {
+          folded = `${pendingInput}\n\nClarifications:\n${lines.join('\n')}`;
+        }
+      }
+
+      setClarifyData(null);
+      finalizeSend(pendingEvent, folded);
     };
 
     const handleFileUpload = () => {
@@ -426,6 +498,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   {llmErrorAlert && <LlmErrorAlert alert={llmErrorAlert} clearAlert={() => clearLlmErrorAlert?.()} />}
                 </div>
                 {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
+                {clarifyData && <ClarifyChips questions={clarifyData.questions} onAnswered={onClarifyAnswered} />}
                 <ChatBox
                   isModelSettingsCollapsed={isModelSettingsCollapsed}
                   setIsModelSettingsCollapsed={setIsModelSettingsCollapsed}
