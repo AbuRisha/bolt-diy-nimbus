@@ -61,12 +61,15 @@ ENV WRANGLER_SEND_METRICS=false \
 # dev's underlying runtime) can verify TLS peers when the app fetches
 # external HTTPS URLs (needed by /api/plan researchReference + classifier
 # calls to api.nimbusapi.net). node:22-bookworm-slim ships without CA roots.
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates python3 python3-pip \
   && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 ENV SSL_CERT_DIR=/etc/ssl/certs
+
+# uv/uvx power the MCP fetch + time servers (feature-parity with LibreChat).
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 
 # Copy built files and scripts
 COPY --from=prod-deps /app/build /app/build
