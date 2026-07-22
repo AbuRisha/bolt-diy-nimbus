@@ -39,10 +39,19 @@ const defaultSettings = {
         command: 'npx',
         args: ['-y', '@modelcontextprotocol/server-memory'],
       },
-      'nimbus-chrome': {
-        command: 'node',
-        args: ['/app/nimbus-chrome-mcp/bridge/index.js'],
-      },
+      /* nimbus-chrome intentionally omitted here.
+       *
+       * The Nimbus Chrome MCP bridge in nimbus-chrome-mcp/bridge/ listens on
+       * ws://127.0.0.1:35123 and pairs with the customer's local Chrome
+       * extension. When bolt.diy is running INSIDE the hosted Azure Container
+       * App, 127.0.0.1 is the container — not the customer's browser machine —
+       * so the pairing can never complete. See:
+       *   docs/nimbus_chrome_mcp_relay_design_2026_07_22.md
+       * for the per-user OIDC relay redesign that will unlock hosted use.
+       *
+       * BYO users running bolt.diy locally on their own machine can re-add
+       * this entry manually via Settings; it works fine when both processes
+       * share the same 127.0.0.1. */
     },
   },
 } satisfies MCPSettings;
