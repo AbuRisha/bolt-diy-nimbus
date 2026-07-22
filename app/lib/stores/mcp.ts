@@ -3,6 +3,7 @@ import type { MCPConfig, MCPServerTools } from '~/lib/services/mcpService';
 
 const MCP_SETTINGS_KEY = 'mcp_settings';
 const isBrowser = typeof window !== 'undefined';
+const LEGACY_HOSTED_CHROME_BRIDGE = '/app/nimbus-chrome-mcp/bridge/index.js';
 
 type MCPSettings = {
   mcpConfig: MCPConfig;
@@ -15,37 +16,63 @@ const defaultSettings = {
     /**
      * Default Nimbus MCP server seed — parity with LibreChat at chat.nimbusapi.net.
      * Users can override or extend from the Settings panel; the defaults ship so
-     * new users get the same 5-tool baseline without any setup.
+     * new users get the same hosted-safe baseline without any setup.
      *
-     * All 5 servers boot from tools that ship in the bolt.diy Docker image:
+     * All 4 servers boot from tools that ship in the bolt.diy Docker image:
      *   - uvx / uv installed via apt in the base stage
      *   - node available (obviously)
-     *   - nimbus-chrome-mcp bridge bundled at /app/nimbus-chrome-mcp/bridge/index.js
+     *
+     * Browser-control MCP is intentionally not seeded here. A bridge running
+     * inside the hosted container cannot reach a customer's local Chrome.
      */
     mcpServers: {
       fetch: {
+        type: 'stdio',
         command: 'uvx',
         args: ['mcp-server-fetch'],
       },
       'sequential-thinking': {
+        type: 'stdio',
         command: 'npx',
         args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
       },
       time: {
+        type: 'stdio',
         command: 'uvx',
         args: ['mcp-server-time', '--local-timezone=UTC'],
       },
       'persistent-memory': {
+        type: 'stdio',
         command: 'npx',
         args: ['-y', '@modelcontextprotocol/server-memory'],
-      },
-      'nimbus-chrome': {
-        command: 'node',
-        args: ['/app/nimbus-chrome-mcp/bridge/index.js'],
       },
     },
   },
 } satisfies MCPSettings;
+
+export function removeLegacyHostedChromeBridge(settings: MCPSettings): MCPSettings {
+  const chromeConfig = settings.mcpConfig.mcpServers['nimbus-chrome'];
+
+  if (
+    !chromeConfig ||
+    !('command' in chromeConfig) ||
+    chromeConfig.command !== 'node' ||
+    chromeConfig.args?.length !== 1 ||
+    chromeConfig.args[0] !== LEGACY_HOSTED_CHROME_BRIDGE
+  ) {
+    return settings;
+  }
+
+  const { ['nimbus-chrome']: _legacyHostedBridge, ...mcpServers } = settings.mcpConfig.mcpServers;
+
+  return {
+    ...settings,
+    mcpConfig: {
+      ...settings.mcpConfig,
+      mcpServers,
+    },
+  };
+}
 
 type Store = {
   isInitialized: boolean;
@@ -77,7 +104,13 @@ export const useMCPStore = create<Store & Actions>((set, get) => ({
 
       if (savedConfig) {
         try {
-          const settings = JSON.parse(savedConfig) as MCPSettings;
+          const parsedSettings = JSON.parse(savedConfig) as MCPSettings;
+          const settings = removeLegacyHostedChromeBridge(parsedSettings);
+
+          if (settings !== parsedSettings) {
+            localStorage.setItem(MCP_SETTINGS_KEY, JSON.stringify(settings));
+          }
+
           const serverTools = await updateServerConfig(settings.mcpConfig);
           set(() => ({ settings, serverTools }));
         } catch (error) {
