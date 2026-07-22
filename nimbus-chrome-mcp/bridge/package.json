@@ -1,0 +1,19 @@
+{
+  "name": "@nimbus/chrome-mcp-bridge",
+  "version": "0.1.0",
+  "description": "MCP bridge for the Nimbus Chrome extension — gives Nimbus Chat + Builder full local browser control.",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "nimbus-chrome-mcp": "index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.21.1"
+  },
+  "author": "FoogleGiber LLC",
+  "homepage": "https://nimbusapi.net/extensions",
+  "license": "MIT"
+}
