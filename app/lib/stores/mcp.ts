@@ -12,7 +12,38 @@ type MCPSettings = {
 const defaultSettings = {
   maxLLMSteps: 5,
   mcpConfig: {
-    mcpServers: {},
+    /**
+     * Default Nimbus MCP server seed — parity with LibreChat at chat.nimbusapi.net.
+     * Users can override or extend from the Settings panel; the defaults ship so
+     * new users get the same 5-tool baseline without any setup.
+     *
+     * All 5 servers boot from tools that ship in the bolt.diy Docker image:
+     *   - uvx / uv installed via apt in the base stage
+     *   - node available (obviously)
+     *   - nimbus-chrome-mcp bridge bundled at /app/nimbus-chrome-mcp/bridge/index.js
+     */
+    mcpServers: {
+      fetch: {
+        command: 'uvx',
+        args: ['mcp-server-fetch'],
+      },
+      'sequential-thinking': {
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
+      },
+      time: {
+        command: 'uvx',
+        args: ['mcp-server-time', '--local-timezone=UTC'],
+      },
+      'persistent-memory': {
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-memory'],
+      },
+      'nimbus-chrome': {
+        command: 'node',
+        args: ['/app/nimbus-chrome-mcp/bridge/index.js'],
+      },
+    },
   },
 } satisfies MCPSettings;
 
