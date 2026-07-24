@@ -33,7 +33,8 @@ import { ChatBox } from './ChatBox';
 import type { DesignScheme } from '~/types/design-scheme';
 import type { ElementInfo } from '~/components/workbench/Inspector';
 import LlmErrorAlert from './LLMApiAlert';
-import { ClarifyChips, type ClarifyQuestion } from './ClarifyChips';
+import type { ClarifyQuestion } from './ClarifyChips';
+import { ClarifyPanel } from './ClarifyPanel';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -498,7 +499,19 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   {llmErrorAlert && <LlmErrorAlert alert={llmErrorAlert} clearAlert={() => clearLlmErrorAlert?.()} />}
                 </div>
                 {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
-                {clarifyData && <ClarifyChips questions={clarifyData.questions} onAnswered={onClarifyAnswered} />}
+                {clarifyLoading && (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 px-1 py-2">
+                    <span className="i-ph:spinner-gap animate-spin" />
+                    Analyzing your request…
+                  </div>
+                )}
+                {clarifyData && (
+                  <ClarifyPanel
+                    questions={clarifyData.questions}
+                    onComplete={(answers) => onClarifyAnswered({ answers })}
+                    onSkip={() => onClarifyAnswered({ answers: {}, skipped: true })}
+                  />
+                )}
                 <ChatBox
                   isModelSettingsCollapsed={isModelSettingsCollapsed}
                   setIsModelSettingsCollapsed={setIsModelSettingsCollapsed}
