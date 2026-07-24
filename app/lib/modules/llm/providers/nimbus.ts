@@ -10,9 +10,22 @@ interface NimbusModelsResponse {
 
 /**
  * Nimbus provider — routes every request to api.nimbusapi.net/v1 (SpiderSense
- * reseller catalog). Uses OpenAI-compatible protocol so we lean on the shared
- * getOpenAILikeModel helper. Set NIMBUS_API_KEY (sk-nim-*) in the environment
- * or per-user provider settings.
+ * reseller catalog). Uses the OpenAI-compatible protocol so we lean on the
+ * shared `getOpenAILikeModel` helper.
+ *
+ * Key resolution (SSO-first):
+ *   - Server-side chat runs through `api.chat.ts` in this repo, which passes
+ *     a `serverEnv` map into this provider. NIMBUS_API_KEY from the container
+ *     env (or nimbus-v2's SSO handoff) is used automatically.
+ *   - The client is never asked for a key. The Nimbus dashboard SSO gate on
+ *     `/` (see `app/routes/_index.tsx`) ensures every visitor is
+ *     authenticated before they can reach the chat surface.
+ *   - For direct browser-side calls (e.g. arbitrary fetch to
+ *     `/models` or `/chat/completions`) use `/api/nimbus-proxy/...` — that
+ *     route injects the server-side key so the browser never touches it.
+ *
+ * If both `apiKey` cookie and server env are absent, we surface an SSO-aware
+ * error instead of the historical "please paste a key" nag.
  */
 export default class NimbusProvider extends BaseProvider {
   name = 'Nimbus';
@@ -55,6 +68,7 @@ export default class NimbusProvider extends BaseProvider {
     });
 
     const resolvedBase = baseUrl || this.config.baseUrl;
+
     if (!resolvedBase || !apiKey) {
       return [];
     }
@@ -101,8 +115,11 @@ export default class NimbusProvider extends BaseProvider {
     });
 
     const resolvedBase = baseUrl || this.config.baseUrl;
+
     if (!resolvedBase || !apiKey) {
-      throw new Error('Nimbus provider: missing NIMBUS_API_KEY (get one at https://nimbusapi.net/dashboard/keys).');
+      throw new Error(
+        'Nimbus provider: no upstream API key available. Sign in at https://nimbusapi.net/dashboard so the Builder inherits your session (this usually means the server is missing NIMBUS_API_KEY or the SSO cookie has expired).',
+      );
     }
 
     return getOpenAILikeModel(resolvedBase, apiKey, model);
