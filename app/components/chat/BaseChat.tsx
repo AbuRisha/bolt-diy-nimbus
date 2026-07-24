@@ -154,6 +154,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       pendingEvent: React.UIEvent;
     } | null>(null);
     const [clarifyLoading, setClarifyLoading] = useState(false);
+    const [referenceUrl, setReferenceUrl] = useState('');
+    const [showRefUrl, setShowRefUrl] = useState(false);
 
     useEffect(() => {
       if (expoUrl) {
@@ -313,7 +315,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         fetch('/api/plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: effectiveInput }),
+          body: JSON.stringify({ prompt: effectiveInput, ...(referenceUrl.trim() ? { referenceUrl: referenceUrl.trim() } : {}) }),
         })
           .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`plan ${r.status}`))))
           .then((data: { mode?: string; questions?: ClarifyQuestion[] }) => {
@@ -511,6 +513,37 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     onComplete={(answers) => onClarifyAnswered({ answers })}
                     onSkip={() => onClarifyAnswered({ answers: {}, skipped: true })}
                   />
+                )}
+                {!chatStarted && (
+                  <div className="flex flex-col gap-1 px-1">
+                    {!showRefUrl ? (
+                      <button
+                        type="button"
+                        className="self-start text-xs text-gray-400 hover:text-cyan-300 border border-gray-700 hover:border-cyan-500/50 px-2 py-1 rounded-md transition-colors"
+                        onClick={() => setShowRefUrl(true)}
+                      >
+                        🔗 Add reference URL
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={referenceUrl}
+                          onChange={(e) => setReferenceUrl(e.target.value)}
+                          placeholder="https://your-inspiration-site.com"
+                          className="flex-1 text-sm bg-[#0d1117] text-white placeholder-gray-500 border border-violet-500/30 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-violet-400/50"
+                        />
+                        <button
+                          type="button"
+                          className="text-gray-400 hover:text-white transition-colors"
+                          onClick={() => { setShowRefUrl(false); setReferenceUrl(''); }}
+                          title="Remove reference URL"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
                 <ChatBox
                   isModelSettingsCollapsed={isModelSettingsCollapsed}
