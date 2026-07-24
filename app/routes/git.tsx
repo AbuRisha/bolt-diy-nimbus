@@ -7,7 +7,10 @@ import { Header } from '~/components/header/Header';
 import BackgroundRays from '~/components/ui/BackgroundRays';
 
 export const meta: MetaFunction = () => {
-  return [{ title: 'Nimbus Builder' }, { name: 'description', content: 'Nimbus Builder - prompt, run, edit, deploy full-stack apps with SpiderSense frontier models.' }];
+  return [
+    { title: 'Nimbus Builder' },
+    { name: 'description', content: 'Nimbus Builder - prompt, run, edit, and deploy full-stack apps with Nimbus AI.' },
+  ];
 };
 
 export async function loader(args: LoaderFunctionArgs) {

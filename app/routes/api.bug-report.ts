@@ -114,7 +114,7 @@ function formatIssueBody(data: z.infer<typeof bugReportSchema>): string {
     }
 
     if (data.environmentInfo.boltVersion) {
-      body += `- bolt.diy: ${data.environmentInfo.boltVersion}\n`;
+      body += `- Nimbus Builder: ${data.environmentInfo.boltVersion}\n`;
     }
 
     if (data.environmentInfo.aiProviders) {
@@ -136,7 +136,7 @@ function formatIssueBody(data: z.infer<typeof bugReportSchema>): string {
     body += `**Contact:** ${data.contactEmail}\n\n`;
   }
 
-  body += '---\n*Submitted via bolt.diy bug report feature*';
+  body += '---\n*Submitted via Nimbus Builder bug report feature*';
 
   return body;
 }
@@ -193,11 +193,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
     // Get GitHub configuration
     const githubToken =
       (context?.cloudflare?.env as any)?.GITHUB_BUG_REPORT_TOKEN || process.env.GITHUB_BUG_REPORT_TOKEN;
-    const targetRepo =
-      (context?.cloudflare?.env as any)?.BUG_REPORT_REPO || process.env.BUG_REPORT_REPO || 'stackblitz-labs/bolt.diy';
+    const targetRepo = (context?.cloudflare?.env as any)?.BUG_REPORT_REPO || process.env.BUG_REPORT_REPO || '';
 
-    if (!githubToken) {
-      console.error('GitHub bug report token not configured');
+    if (!githubToken || !targetRepo) {
+      console.error('Bug reporting is not configured (missing token or target repo).');
       return json(
         { error: 'Bug reporting is not properly configured. Please contact the administrators.' },
         { status: 500 },
@@ -207,7 +206,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     // Initialize GitHub client
     const octokit = new Octokit({
       auth: githubToken,
-      userAgent: 'bolt.diy-bug-reporter',
+      userAgent: 'nimbus-builder-bug-reporter',
     });
 
     // Create GitHub issue

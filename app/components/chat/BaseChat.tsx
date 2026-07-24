@@ -424,19 +424,53 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
         <div className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
-          <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
+          <div
+            className={classNames(
+              styles.Chat,
+              'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full relative',
+            )}
+          >
             {!chatStarted && (
-              <div id="intro" className="mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
-                <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
-                  Where ideas begin
-                </h1>
-                <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
-                  Bring ideas to life in seconds or get help on existing projects.
-                </p>
-              </div>
+              <>
+                {/* Hero background art — atelier scene, fades to ink at edges */}
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+                >
+                  <img
+                    src="/brand/builder-hero-atelier.png"
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover opacity-25"
+                    style={{
+                      WebkitMaskImage:
+                        'radial-gradient(ellipse 70% 65% at 50% 45%, #000 45%, transparent 100%)',
+                      maskImage:
+                        'radial-gradient(ellipse 70% 65% at 50% 45%, #000 45%, transparent 100%)',
+                    }}
+                    loading="eager"
+                    decoding="async"
+                  />
+                  {/* Ink vignette edges */}
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background:
+                        'radial-gradient(ellipse 80% 70% at 50% 50%, transparent 55%, #05070E 100%)',
+                    }}
+                  />
+                </div>
+                <div id="intro" className="relative z-10 mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
+                  <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
+                    Where ideas begin
+                  </h1>
+                  <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
+                    Bring ideas to life in seconds or get help on existing projects.
+                  </p>
+                </div>
+              </>
             )}
             <StickToBottom
-              className={classNames('pt-6 px-2 sm:px-6 relative', {
+              className={classNames('pt-6 px-2 sm:px-6 relative z-10', {
                 'h-full flex flex-col modern-scrollbar': chatStarted,
               })}
               resize="smooth"

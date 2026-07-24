@@ -20,7 +20,7 @@ export const meta: MetaFunction = () => {
     { title: 'Nimbus Builder' },
     {
       name: 'description',
-      content: 'Nimbus Builder - prompt, run, edit, deploy full-stack apps with SpiderSense frontier models.',
+      content: 'Nimbus Builder - prompt, run, edit, and deploy full-stack apps with Nimbus AI.',
     },
   ];
 };
