@@ -16,6 +16,29 @@ const providerEnvKeyStatusCache: Record<string, boolean> = {};
 
 const apiKeyMemoizeCache: { [k: string]: Record<string, string> } = {};
 
+/**
+ * Options for the shared `apiKeys` cookie. When the user is on any
+ * *.nimbusapi.net origin, scope the cookie to the parent domain so a key
+ * entered in Builder is also available to chat.nimbusapi.net (and vice
+ * versa). Elsewhere (localhost, preview, self-host), fall back to host-only
+ * cookies so we do not silently write a Domain browsers would reject.
+ */
+function nimbusCookieAttributes(): Cookies.CookieAttributes {
+  const attrs: Cookies.CookieAttributes = { expires: 365, sameSite: 'lax' };
+
+  if (typeof window === 'undefined') {
+    return attrs;
+  }
+
+  const host = window.location.hostname;
+  if (host === 'nimbusapi.net' || host.endsWith('.nimbusapi.net')) {
+    attrs.domain = '.nimbusapi.net';
+    attrs.secure = true;
+  }
+
+  return attrs;
+}
+
 export function getApiKeysFromCookies() {
   const storedApiKeys = Cookies.get('apiKeys');
   let parsedKeys: Record<string, string> = {};
@@ -77,13 +100,32 @@ export const APIKeyManager: React.FC<APIKeyManagerProps> = ({ provider, apiKey, 
     // Save to parent state
     setApiKey(tempKey);
 
-    // Save to cookies
+    // Save to cookies — scoped to .nimbusapi.net on prod so builder + chat
+    // share the same BYOK vault. See nimbusCookieAttributes().
     const currentKeys = getApiKeysFromCookies();
     const newKeys = { ...currentKeys, [provider.name]: tempKey };
-    Cookies.set('apiKeys', JSON.stringify(newKeys));
+    Cookies.set('apiKeys', JSON.stringify(newKeys), nimbusCookieAttributes());
 
     setIsEditing(false);
   };
+
+  // Nimbus keys are managed server-side on the hosted product. When the env
+  // var is set (or the provider self-identifies as Nimbus), do not render
+  // the per-provider key prompt — customers never see "Not Set" on Nimbus.
+  const isNimbus = (provider as any)?.isNimbus === true || provider?.name === 'Nimbus';
+  if (isNimbus && (isEnvKeySet || !apiKey)) {
+    return (
+      <div className="flex items-center justify-between py-3 px-1">
+        <div className="flex items-center gap-2 flex-1">
+          <span className="text-sm font-medium text-bolt-elements-textSecondary">Nimbus API:</span>
+          <div className="flex items-center gap-2">
+            <div className="i-ph:check-circle-fill text-green-500 w-4 h-4" />
+            <span className="text-xs text-green-500">Managed by Nimbus</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-between py-3 px-1">
@@ -105,7 +147,7 @@ export const APIKeyManager: React.FC<APIKeyManagerProps> = ({ provider, apiKey, 
               ) : (
                 <>
                   <div className="i-ph:x-circle-fill text-red-500 w-4 h-4" />
-                  <span className="text-xs text-red-500">Not Set (Please set via UI or ENV_VAR)</span>
+                  <span className="text-xs text-red-500">Not set — add your {provider?.name} key</span>
                 </>
               )}
             </div>

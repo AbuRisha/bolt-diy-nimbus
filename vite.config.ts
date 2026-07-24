@@ -78,6 +78,12 @@ export default defineConfig((config) => {
       'OLLAMA_API_BASE_URL',
       'LMSTUDIO_API_BASE_URL',
       'TOGETHER_API_BASE_URL',
+
+      // Nimbus deployment flags — must reach the client bundle so the primary
+      // provider picker can hide non-Nimbus providers when NIMBUS_ONLY=true is
+      // set at ACA / Docker build time. Without this prefix, import.meta.env
+      // will NOT surface these to the browser and the UI cannot filter.
+      'NIMBUS_ONLY',
     ],
     css: {
       preprocessorOptions: {

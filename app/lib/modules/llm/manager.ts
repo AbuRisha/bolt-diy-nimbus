@@ -5,6 +5,37 @@ import * as providers from './registry';
 import { createScopedLogger } from '~/utils/logger';
 
 const logger = createScopedLogger('LLMManager');
+
+/**
+ * Resolve the current NIMBUS_ONLY flag from every source we might see it in:
+ * Cloudflare/ACA env passed to getInstance(), plain process.env on Node, and
+ * (for the browser bundle) the Vite-inlined import.meta.env value. First
+ * truthy wins.
+ */
+function resolveNimbusOnly(env: Record<string, string> = {}): boolean {
+  if (env.NIMBUS_ONLY === 'true') {
+    return true;
+  }
+
+  if (typeof process !== 'undefined' && process.env?.NIMBUS_ONLY === 'true') {
+    return true;
+  }
+
+  try {
+    // import.meta.env is inlined by Vite at build time — the NIMBUS_ONLY
+    // prefix is whitelisted in vite.config.ts so this value is present in
+    // the browser bundle when the deployment ships with NIMBUS_ONLY=true.
+    const viteEnv = (import.meta as any)?.env;
+    if (viteEnv?.NIMBUS_ONLY === 'true' || viteEnv?.VITE_NIMBUS_ONLY === 'true') {
+      return true;
+    }
+  } catch {
+    // import.meta not available in the current runtime — ignore.
+  }
+
+  return false;
+}
+
 export class LLMManager {
   private static _instance: LLMManager;
   private _providers: Map<string, BaseProvider> = new Map();
@@ -12,9 +43,6 @@ export class LLMManager {
   private _env: Record<string, string> = {};
 
   private constructor(_env: Record<string, string>) {
-    // Set env FIRST so _registerProvidersFromDirectory can honor NIMBUS_ONLY.
-    // Previously registration ran before _env was assigned, so the NIMBUS_ONLY
-    // gate never fired and all 22 upstream providers registered.
     this._env = _env;
     this._registerProvidersFromDirectory();
   }
@@ -23,17 +51,13 @@ export class LLMManager {
     if (!LLMManager._instance) {
       LLMManager._instance = new LLMManager(env);
     } else if (Object.keys(env).length > 0) {
-      const oldNimbusOnly = LLMManager._instance._env?.NIMBUS_ONLY;
       LLMManager._instance._env = env;
 
-      // Re-register when the NIMBUS_ONLY flag transitions (or first arrives)
-      // so the filter takes effect even when the first getInstance() call
-      // happened at module-load with empty env.
-      if (env.NIMBUS_ONLY !== oldNimbusOnly) {
-        LLMManager._instance._providers.clear();
-        LLMManager._instance._modelList = [];
-        LLMManager._instance._registerProvidersFromDirectory();
-      }
+      // Registration is now UNCONDITIONAL — every provider always registers
+      // so code paths compile and the "Advanced — bring your own key" panel
+      // can reach them. The NIMBUS_ONLY flag no longer changes registration
+      // scope; the UI filters instead (see getPrimaryProviders /
+      // getAdvancedProviders below).
     }
 
     return LLMManager._instance;
@@ -45,22 +69,15 @@ export class LLMManager {
   private async _registerProvidersFromDirectory() {
     try {
       /*
-       * Dynamically import all files from the providers directory
-       * const providerModules = import.meta.glob('./providers/*.ts', { eager: true });
+       * Look for exported classes that extend BaseProvider. Every provider
+       * registers unconditionally — the NIMBUS_ONLY deployment flag only
+       * affects UI visibility. Keeping upstream providers registered means
+       * the "Advanced — bring your own key" panel can wire them up when the
+       * customer supplies their own API key.
        */
-
-      // Look for exported classes that extend BaseProvider
-      // Nimbus-only mode: when NIMBUS_ONLY=true env is set, register only Nimbus
-      // so the customer picker exposes just the SpiderSense catalog.
-      const nimbusOnly = (this._env?.NIMBUS_ONLY || (typeof process !== 'undefined' && process.env?.NIMBUS_ONLY)) === 'true';
-
       for (const exportedItem of Object.values(providers)) {
         if (typeof exportedItem === 'function' && exportedItem.prototype instanceof BaseProvider) {
           const provider = new exportedItem();
-
-          if (nimbusOnly && provider.name !== 'Nimbus') {
-            continue;
-          }
 
           try {
             this.registerProvider(provider);
@@ -91,6 +108,70 @@ export class LLMManager {
 
   getAllProviders(): BaseProvider[] {
     return Array.from(this._providers.values());
+  }
+
+  /**
+   * `true` when the deployment is customer-facing Nimbus — the primary
+   * picker MUST show only the Nimbus provider and non-Nimbus providers move
+   * behind the "Advanced — bring your own key" panel.
+   */
+  isNimbusOnlyMode(): boolean {
+    return resolveNimbusOnly(this._env);
+  }
+
+  /**
+   * Providers that render in the primary picker. In NIMBUS_ONLY mode this is
+   * the Nimbus provider only; otherwise it is every registered provider so
+   * self-hosters get the full catalog by default.
+   */
+  getPrimaryProviders(): BaseProvider[] {
+    const all = this.getAllProviders();
+    if (!this.isNimbusOnlyMode()) {
+      return all;
+    }
+
+    return all.filter((p) => p.isNimbus);
+  }
+
+  /**
+   * Providers that render inside the "Advanced — bring your own key" panel.
+   * Empty when NIMBUS_ONLY mode is off (the primary picker already lists
+   * them). When on, this is every non-Nimbus provider.
+   */
+  getAdvancedProviders(): BaseProvider[] {
+    if (!this.isNimbusOnlyMode()) {
+      return [];
+    }
+
+    return this.getAllProviders().filter((p) => !p.isNimbus);
+  }
+
+  /**
+   * True when the server has a resolved API token for the given provider —
+   * either via a Cloudflare/ACA env binding OR a plain process.env var. Used
+   * by the client to decide whether to suppress the "Not set" API-key prompt
+   * (Nimbus keys are managed server-side on the hosted product).
+   */
+  hasServerApiKey(providerName: string): boolean {
+    const provider = this._providers.get(providerName);
+    if (!provider) {
+      return false;
+    }
+
+    const tokenKey = provider.config?.apiTokenKey;
+    if (!tokenKey) {
+      return false;
+    }
+
+    if (this._env?.[tokenKey]) {
+      return true;
+    }
+
+    if (typeof process !== 'undefined' && process.env?.[tokenKey]) {
+      return true;
+    }
+
+    return false;
   }
 
   getModelList(): ModelInfo[] {
@@ -220,7 +301,19 @@ export class LLMManager {
     return [...(provider.staticModels || [])];
   }
 
+  /**
+   * The default provider is Nimbus when NIMBUS_ONLY mode is on (so a fresh
+   * session lands on Nimbus, not the first alphabetical upstream provider).
+   * Otherwise it is the first registered provider (upstream behavior).
+   */
   getDefaultProvider(): BaseProvider {
+    if (this.isNimbusOnlyMode()) {
+      const nimbus = this.getAllProviders().find((p) => p.isNimbus);
+      if (nimbus) {
+        return nimbus;
+      }
+    }
+
     const firstProvider = this._providers.values().next().value;
 
     if (!firstProvider) {

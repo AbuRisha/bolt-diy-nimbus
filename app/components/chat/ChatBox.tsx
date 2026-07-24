@@ -1,9 +1,10 @@
 import React from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { classNames } from '~/utils/classNames';
-import { PROVIDER_LIST } from '~/utils/constants';
+import { NIMBUS_ONLY_MODE, PRIMARY_PROVIDERS, PROVIDER_LIST } from '~/utils/constants';
 import { ModelSelector } from '~/components/chat/ModelSelector';
 import { APIKeyManager } from './APIKeyManager';
+import { AdvancedProvidersPanel } from './AdvancedProvidersPanel';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
 import FilePreview from './FilePreview';
 import { ScreenshotStateManager } from './ScreenshotStateManager';
@@ -66,6 +67,29 @@ interface ChatBoxProps {
 }
 
 export const ChatBox: React.FC<ChatBoxProps> = (props) => {
+  /*
+   * In NIMBUS_ONLY mode the primary picker MUST render only the Nimbus
+   * provider — every other provider moves behind the "Advanced — bring your
+   * own key" panel below. If the user has BYOK'd and switched to another
+   * provider via the panel, keep that one in the list too so they can still
+   * see/change the current selection.
+   */
+  const pickerProviderList = React.useMemo(() => {
+    const base = props.providerList || (PROVIDER_LIST as ProviderInfo[]);
+    if (!NIMBUS_ONLY_MODE) {
+      return base;
+    }
+
+    const primary = PRIMARY_PROVIDERS as unknown as ProviderInfo[];
+    const primaryNames = new Set(primary.map((p) => p.name));
+
+    if (props.provider && !primaryNames.has(props.provider.name)) {
+      return [...primary, props.provider];
+    }
+
+    return primary;
+  }, [props.providerList, props.provider]);
+
   return (
     <div
       className={classNames(
@@ -115,7 +139,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                 modelList={props.modelList}
                 provider={props.provider}
                 setProvider={props.setProvider}
-                providerList={props.providerList || (PROVIDER_LIST as ProviderInfo[])}
+                providerList={pickerProviderList}
                 apiKeys={props.apiKeys}
                 modelLoading={props.isModelLoading}
               />
@@ -130,6 +154,18 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                     }}
                   />
                 )}
+
+              {/*
+                Advanced — bring your own key. Renders only in NIMBUS_ONLY
+                mode; a no-op otherwise. Non-Nimbus providers stay hidden
+                from the primary picker but customers can plug their own
+                upstream key here and route through it.
+              */}
+              <AdvancedProvidersPanel
+                apiKeys={props.apiKeys}
+                onApiKeysChange={props.onApiKeysChange}
+                onSelectProvider={props.setProvider}
+              />
             </div>
           )}
         </ClientOnly>

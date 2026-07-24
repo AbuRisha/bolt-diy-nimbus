@@ -21,6 +21,15 @@ export abstract class BaseProvider implements ProviderInfo {
   icon?: string;
 
   /**
+   * `true` for the first-party Nimbus provider only. Every upstream vendor
+   * provider (Anthropic, OpenAI, Google, Cohere, DeepSeek, …) defaults to
+   * `false` — those live behind the "Advanced — bring your own key" panel
+   * when NIMBUS_ONLY mode is active. See app/lib/modules/llm/manager.ts
+   * `getPrimaryProviders()` / `getAdvancedProviders()`.
+   */
+  isNimbus: boolean = false;
+
+  /**
    * Convert Cloudflare Env bindings to a plain Record<string, string>.
    * Useful because provider methods expect Record<string, string> but
    * Cloudflare Workers pass an Env interface.

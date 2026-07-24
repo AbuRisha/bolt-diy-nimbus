@@ -18,7 +18,36 @@ export const TOOL_EXECUTION_ERROR = 'Error: An error occured while calling tool'
 
 const llmManager = LLMManager.getInstance(import.meta.env);
 
+/**
+ * The full set of registered providers. Kept for backward compatibility with
+ * every call site that already imports it. In NIMBUS_ONLY mode the primary
+ * picker should render `PRIMARY_PROVIDERS` instead — this list is used by
+ * self-hosters and by the "Advanced — bring your own key" panel.
+ */
 export const PROVIDER_LIST = llmManager.getAllProviders();
+
+/**
+ * `true` when the deployment is customer-facing Nimbus. Set at Docker build
+ * time via NIMBUS_ONLY=true; whitelisted in vite.config.ts `envPrefix` so
+ * `import.meta.env.NIMBUS_ONLY` is inlined into the client bundle.
+ */
+export const NIMBUS_ONLY_MODE: boolean = llmManager.isNimbusOnlyMode();
+
+/**
+ * Providers that render in the primary picker. In NIMBUS_ONLY mode this is
+ * the Nimbus provider only. Never render this list AND `ADVANCED_PROVIDERS`
+ * at the same primary UI position — the whole point of the split is that
+ * advanced providers stay hidden until the user opens the BYOK panel.
+ */
+export const PRIMARY_PROVIDERS = llmManager.getPrimaryProviders();
+
+/**
+ * Providers that render inside the "Advanced — bring your own key" panel.
+ * Empty when NIMBUS_ONLY mode is off. UI callers should check `.length > 0`
+ * before rendering the panel scaffold.
+ */
+export const ADVANCED_PROVIDERS = llmManager.getAdvancedProviders();
+
 export const DEFAULT_PROVIDER = llmManager.getDefaultProvider();
 
 export const providerBaseUrlEnvKeys: Record<string, { baseUrlKey?: string; apiTokenKey?: string }> = {};
