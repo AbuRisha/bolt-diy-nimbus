@@ -1,1 +1,126 @@
-aW1wb3J0IHsgY2xvdWRmbGFyZURldlByb3h5Vml0ZVBsdWdpbiBhcyByZW1peENsb3VkZmxhcmVEZXZQcm94eSwgdml0ZVBsdWdpbiBhcyByZW1peFZpdGVQbHVnaW4gfSBmcm9tICdAcmVtaXgtcnVuL2Rldic7CmltcG9ydCBVbm9DU1MgZnJvbSAndW5vY3NzL3ZpdGUnOwppbXBvcnQgeyBkZWZpbmVDb25maWcsIHR5cGUgVml0ZURldlNlcnZlciB9IGZyb20gJ3ZpdGUnOwppbXBvcnQgeyBub2RlUG9seWZpbGxzIH0gZnJvbSAndml0ZS1wbHVnaW4tbm9kZS1wb2x5ZmlsbHMnOwppbXBvcnQgeyBvcHRpbWl6ZUNzc01vZHVsZXMgfSBmcm9tICd2aXRlLXBsdWdpbi1vcHRpbWl6ZS1jc3MtbW9kdWxlcyc7CmltcG9ydCB0c2NvbmZpZ1BhdGhzIGZyb20gJ3ZpdGUtdHNjb25maWctcGF0aHMnOwppbXBvcnQgKiBhcyBkb3RlbnYgZnJvbSAnZG90ZW52JzsKCi8vIExvYWQgZW52aXJvbm1lbnQgdmFyaWFibGVzIGZyb20gbXVsdGlwbGUgZmlsZXMKZG90ZW52LmNvbmZpZyh7IHBhdGg6ICcuZW52LmxvY2FsJyB9KTsKZG90ZW52LmNvbmZpZyh7IHBhdGg6ICcuZW52JyB9KTsKZG90ZW52LmNvbmZpZygpOwoKZXhwb3J0IGRlZmF1bHQgZGVmaW5lQ29uZmlnKChjb25maWcpID0+IHsKICByZXR1cm4gewogICAgZGVmaW5lOiB7CiAgICAgICdwcm9jZXNzLmVudi5OT0RFX0VOVic6IEpTT04uc3RyaW5naWZ5KHByb2Nlc3MuZW52Lk5PREVfRU5WKSwKICAgIH0sCiAgICBidWlsZDogewogICAgICB0YXJnZXQ6ICdlc25leHQnLAogICAgfSwKICAgIHNlcnZlcjogewogICAgICBob3N0OiAnMC4wLjAuMCcsCiAgICAgIHBvcnQ6IDUxNzMsCiAgICAgIHN0cmljdFBvcnQ6IHRydWUsCiAgICAgIC8vIEFsbG93IGFueSBIb3N0IGhlYWRlciAtIHdlIHNpdCBiZWhpbmQgQVpBIC8gT1ZIIENhZGR5IHdoaWNoIHRlcm1pbmF0ZXMKICAgICAgLy8gVExTIGF0IGJ1aWxkZXIubmltYnVzYXBpLm5ldCBhbmQgcHJveGllcyB0byB0aGlzIGludGVybmFsIHBvcnQuCiAgICAgIGFsbG93ZWRIb3N0czogdHJ1ZSwKICAgIH0sCiAgICBwcmV2aWV3OiB7CiAgICAgIGhvc3Q6ICcwLjAuMC4wJywKICAgICAgcG9ydDogNTE3MywKICAgICAgc3RyaWN0UG9ydDogdHJ1ZSwKICAgICAgYWxsb3dlZEhvc3RzOiB0cnVlLAogICAgfSwKICAgIHBsdWdpbnM6IFsKICAgICAgbm9kZVBvbHlmaWxscyh7CiAgICAgICAgaW5jbHVkZTogWydidWZmZXInLCAncHJvY2VzcycsICd1dGlsJywgJ3N0cmVhbSddLAogICAgICAgIGdsb2JhbHM6IHsKICAgICAgICAgIEJ1ZmZlcjogdHJ1ZSwKICAgICAgICAgIHByb2Nlc3M6IHRydWUsCiAgICAgICAgICBnbG9iYWw6IHRydWUsCiAgICAgICAgfSwKICAgICAgICBwcm90b2NvbEltcG9ydHM6IHRydWUsCiAgICAgICAgZXhjbHVkZTogWydjaGlsZF9wcm9jZXNzJywgJ2ZzJywgJ3BhdGgnXSwKICAgICAgfSksCiAgICAgIHsKICAgICAgICBuYW1lOiAnYnVmZmVyLXBvbHlmaWxsJywKICAgICAgICB0cmFuc2Zvcm0oY29kZSwgaWQpIHsKICAgICAgICAgIGlmIChpZC5pbmNsdWRlcygnZW52Lm1qcycpKSB7CiAgICAgICAgICAgIHJldHVybiB7CiAgICAgICAgICAgICAgY29kZTogYGltcG9ydCB7IEJ1ZmZlciB9IGZyb20gJ2J1ZmZlcic7XG4ke2NvZGV9YCwKICAgICAgICAgICAgICBtYXA6IG51bGwsCiAgICAgICAgICAgIH07CiAgICAgICAgICB9CgogICAgICAgICAgcmV0dXJuIG51bGw7CiAgICAgICAgfSwKICAgICAgfSwKICAgICAgY29uZmlnLm1vZGUgIT09ICd0ZXN0JyAmJiByZW1peENsb3VkZmxhcmVEZXZQcm94eSgpLAogICAgICByZW1peFZpdGVQbHVnaW4oewogICAgICAgIGZ1dHVyZTogewogICAgICAgICAgdjNfZmV0Y2hlclBlcnNpc3Q6IHRydWUsCiAgICAgICAgICB2M19yZWxhdGl2ZVNwbGF0UGF0aDogdHJ1ZSwKICAgICAgICAgIHYzX3Rocm93QWJvcnRSZWFzb246IHRydWUsCiAgICAgICAgICB2M19sYXp5Um91dGVEaXNjb3Zlcnk6IHRydWUsCiAgICAgICAgfSwKICAgICAgfSksCiAgICAgIFVub0NTUygpLAogICAgICB0c2NvbmZpZ1BhdGhzKCksCiAgICAgIGNocm9tZTEyOUlzc3VlUGx1Z2luKCksCiAgICAgIGNvbmZpZy5tb2RlID09PSAncHJvZHVjdGlvbicgJiYgb3B0aW1pemVDc3NNb2R1bGVzKHsgYXBwbHk6ICdidWlsZCcgfSksCiAgICBdLAogICAgZW52UHJlZml4OiBbCiAgICAgICdWSVRFXycsCiAgICAgICdPUEVOQUlfTElLRV9BUElfQkFTRV9VUkwnLAogICAgICAnT1BFTkFJX0xJS0VfQVBJX01PREVMUycsCiAgICAgICdPTExBTUFfQVBJX0JBU0VfVVJMJywKICAgICAgJ0xNU1RVRElPX0FQSV9CQVNFX1VSTCcsCiAgICAgICdUT0dFVEhFUl9BUElfQkFTRV9VUkwnLAogICAgXSwKICAgIGNzczogewogICAgICBwcmVwcm9jZXNzb3JPcHRpb25zOiB7CiAgICAgICAgc2NzczogewogICAgICAgICAgYXBpOiAnbW9kZXJuLWNvbXBpbGVyJywKICAgICAgICB9LAogICAgICB9LAogICAgfSwKICAgIHRlc3Q6IHsKICAgICAgZXhjbHVkZTogWwogICAgICAgICcqKi9ub2RlX21vZHVsZXMvKionLAogICAgICAgICcqKi9kaXN0LyoqJywKICAgICAgICAnKiovY3lwcmVzcy8qKicsCiAgICAgICAgJyoqLy57aWRlYSxnaXQsY2FjaGUsb3V0cHV0LHRlbXB9LyoqJywKICAgICAgICAnKiove2thcm1hLHJvbGx1cCx3ZWJwYWNrLHZpdGUsdml0ZXN0LGplc3QsYXZhLGJhYmVsLG55YyxjeXByZXNzLHRzdXAsYnVpbGR9LmNvbmZpZy4qJywKICAgICAgICAnKiovdGVzdHMvcHJldmlldy8qKicsIC8vIEV4Y2x1ZGUgcHJldmlldyB0ZXN0cyB0aGF0IHJlcXVpcmUgUGxheXdyaWdodAogICAgICBdLAogICAgfSwKICB9Owp9KTsKCmZ1bmN0aW9uIGNocm9tZTEyOUlzc3VlUGx1Z2luKCkgewogIHJldHVybiB7CiAgICBuYW1lOiAnY2hyb21lMTI5SXNzdWVQbHVnaW4nLAogICAgY29uZmlndXJlU2VydmVyKHNlcnZlcjogVml0ZURldlNlcnZlcikgewogICAgICBzZXJ2ZXIubWlkZGxld2FyZXMudXNlKChyZXEsIHJlcywgbmV4dCkgPT4gewogICAgICAgIGNvbnN0IHJhdyA9IHJlcS5oZWFkZXJzWyd1c2VyLWFnZW50J10/Lm1hdGNoKC9DaHJvbShlfGl1bSlcLyhbMC05XSspXC4vKTsKCiAgICAgICAgaWYgKHJhdykgewogICAgICAgICAgY29uc3QgdmVyc2lvbiA9IHBhcnNlSW50KHJhd1syXSwgMTApOwoKICAgICAgICAgIGlmICh2ZXJzaW9uID09PSAxMjkpIHsKICAgICAgICAgICAgcmVzLnNldEhlYWRlcignY29udGVudC10eXBlJywgJ3RleHQvaHRtbCcpOwogICAgICAgICAgICByZXMuZW5kKAogICAgICAgICAgICAgICc8Ym9keT48aDE+UGxlYXNlIHVzZSBDaHJvbWUgQ2FuYXJ5IGZvciB0ZXN0aW5nLjwvaDE+PHA+Q2hyb21lIDEyOSBoYXMgYW4gaXNzdWUgd2l0aCBKYXZhU2NyaXB0IG1vZHVsZXMgJiBWaXRlIGxvY2FsIGRldmVsb3BtZW50LCBzZWUgPGEgaHJlZj0iaHR0cHM6Ly9naXRodWIuY29tL3N0YWNrYmxpdHovYm9sdC5uZXcvaXNzdWVzLzg2I2lzc3VlY29tbWVudC0yMzk1NTE5MjU4Ij5mb3IgbW9yZSBpbmZvcm1hdGlvbi48L2E+PC9wPjxwPjxiPk5vdGU6PC9iPiBUaGlzIG9ubHkgaW1wYWN0cyA8dT5sb2NhbCBkZXZlbG9wbWVudDwvdT4uIGBwbnBtIHJ1biBidWlsZGAgYW5kIGBwbnBtIHJ1biBzdGFydGAgd2lsbCB3b3JrIGZpbmUgaW4gdGhpcyBicm93c2VyLjwvcD48L2JvZHk+JywKICAgICAgICAgICAgKTsKCiAgICAgICAgICAgIHJldHVybjsKICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIG5leHQoKTsKICAgICAgfSk7CiAgICB9LAogIH07Cn0K
+import { cloudflareDevProxyVitePlugin as remixCloudflareDevProxy, vitePlugin as remixVitePlugin } from '@remix-run/dev';
+import UnoCSS from 'unocss/vite';
+import { defineConfig, type ViteDevServer } from 'vite';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import { optimizeCssModules } from 'vite-plugin-optimize-css-modules';
+import tsconfigPaths from 'vite-tsconfig-paths';
+import * as dotenv from 'dotenv';
+
+// Load environment variables from multiple files
+dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env' });
+dotenv.config();
+
+export default defineConfig((config) => {
+  return {
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+    },
+    build: {
+      target: 'esnext',
+    },
+    server: {
+      host: '0.0.0.0',
+      port: 5173,
+      strictPort: true,
+      // Allow any Host header - we sit behind ACA / OVH Caddy which terminates
+      // TLS at builder.nimbusapi.net and proxies to this internal port.
+      allowedHosts: true,
+    },
+    preview: {
+      host: '0.0.0.0',
+      port: 5173,
+      strictPort: true,
+      allowedHosts: true,
+    },
+    plugins: [
+      nodePolyfills({
+        include: ['buffer', 'process', 'util', 'stream'],
+        globals: {
+          Buffer: true,
+          process: true,
+          global: true,
+        },
+        protocolImports: true,
+        exclude: ['child_process', 'fs', 'path'],
+      }),
+      {
+        name: 'buffer-polyfill',
+        transform(code, id) {
+          if (id.includes('env.mjs')) {
+            return {
+              code: `import { Buffer } from 'buffer';\n${code}`,
+              map: null,
+            };
+          }
+
+          return null;
+        },
+      },
+      config.mode !== 'test' && remixCloudflareDevProxy(),
+      remixVitePlugin({
+        future: {
+          v3_fetcherPersist: true,
+          v3_relativeSplatPath: true,
+          v3_throwAbortReason: true,
+          v3_lazyRouteDiscovery: true,
+        },
+      }),
+      UnoCSS(),
+      tsconfigPaths(),
+      chrome129IssuePlugin(),
+      config.mode === 'production' && optimizeCssModules({ apply: 'build' }),
+    ],
+    envPrefix: [
+      'VITE_',
+      'OPENAI_LIKE_API_BASE_URL',
+      'OPENAI_LIKE_API_MODELS',
+      'OLLAMA_API_BASE_URL',
+      'LMSTUDIO_API_BASE_URL',
+      'TOGETHER_API_BASE_URL',
+    ],
+    css: {
+      preprocessorOptions: {
+        scss: {
+          api: 'modern-compiler',
+        },
+      },
+    },
+    test: {
+      exclude: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/cypress/**',
+        '**/.{idea,git,cache,output,temp}/**',
+        '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
+        '**/tests/preview/**', // Exclude preview tests that require Playwright
+      ],
+    },
+  };
+});
+
+function chrome129IssuePlugin() {
+  return {
+    name: 'chrome129IssuePlugin',
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use((req, res, next) => {
+        const raw = req.headers['user-agent']?.match(/Chrom(e|ium)\/([0-9]+)\./);
+
+        if (raw) {
+          const version = parseInt(raw[2], 10);
+
+          if (version === 129) {
+            res.setHeader('content-type', 'text/html');
+            res.end(
+              '<body><h1>Please use Chrome Canary for testing.</h1><p>Chrome 129 has an issue with JavaScript modules & Vite local development, see <a href="https://github.com/stackblitz/bolt.new/issues/86#issuecomment-2395519258">for more information.</a></p><p><b>Note:</b> This only impacts <u>local development</u>. `pnpm run build` and `pnpm run start` will work fine in this browser.</p></body>',
+            );
+
+            return;
+          }
+        }
+
+        next();
+      });
+    },
+  };
+}
