@@ -1,6 +1,7 @@
 import { json } from '@remix-run/cloudflare';
 import { withSecurity } from '~/lib/security';
 import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
+import { apiBaseFromUserInput, safeFetch } from '~/utils/url';
 
 interface GitLabBranch {
   name: string;
@@ -21,8 +22,8 @@ interface BranchInfo {
   canPush: boolean;
 }
 
-async function gitlabBranchesLoader({ request }: { request: Request }) {
-  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+async function gitlabBranchesLoader({ request, context }: { request: Request; context?: any }) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
 
   if (__nimbusDenied) {
     return __nimbusDenied;
@@ -40,10 +41,24 @@ async function gitlabBranchesLoader({ request }: { request: Request }) {
       return json({ error: 'Project ID is required' }, { status: 400 });
     }
 
-    // Fetch branches from GitLab API
-    const branchesUrl = `${gitlabUrl}/api/v4/projects/${projectId}/repository/branches?per_page=100`;
+    /*
+     * `gitlabUrl` is caller-supplied and self-hosted GitLab is a legitimate
+     * use, so it cannot be pinned to gitlab.com. It must still be validated:
+     * without this an authenticated caller can point the server at
+     * 127.0.0.1, 169.254.169.254 or RFC1918 space and read the result back
+     * through the branches field, or use the mirrored status code as a
+     * port-scan oracle.
+     */
+    const base = apiBaseFromUserInput(gitlabUrl);
 
-    const response = await fetch(branchesUrl, {
+    if (!base) {
+      return json({ error: 'gitlab_url_not_allowed' }, { status: 400 });
+    }
+
+    // Fetch branches from GitLab API
+    const branchesUrl = `${base}/api/v4/projects/${projectId}/repository/branches?per_page=100`;
+
+    const response = await safeFetch(branchesUrl, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
@@ -74,8 +89,8 @@ async function gitlabBranchesLoader({ request }: { request: Request }) {
     const branches: GitLabBranch[] = await response.json();
 
     // Also fetch project info to get default branch name
-    const projectUrl = `${gitlabUrl}/api/v4/projects/${projectId}`;
-    const projectResponse = await fetch(projectUrl, {
+    const projectUrl = `${base}/api/v4/projects/${projectId}`;
+    const projectResponse = await safeFetch(projectUrl, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',

@@ -2,6 +2,7 @@ import { json } from '@remix-run/cloudflare';
 import { withSecurity } from '~/lib/security';
 import type { GitLabProjectInfo } from '~/types/GitLab';
 import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
+import { apiBaseFromUserInput, safeFetch } from '~/utils/url';
 
 interface GitLabProject {
   id: number;
@@ -17,8 +18,8 @@ interface GitLabProject {
   visibility: string;
 }
 
-async function gitlabProjectsLoader({ request }: { request: Request }) {
-  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+async function gitlabProjectsLoader({ request, context }: { request: Request; context?: any }) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
 
   if (__nimbusDenied) {
     return __nimbusDenied;
@@ -32,10 +33,23 @@ async function gitlabProjectsLoader({ request }: { request: Request }) {
       return json({ error: 'GitLab token is required' }, { status: 400 });
     }
 
-    // Fetch user's projects from GitLab API
-    const url = `${gitlabUrl}/api/v4/projects?membership=true&per_page=100&order_by=updated_at&sort=desc`;
+    /*
+     * `gitlabUrl` is caller-supplied and self-hosted GitLab is a legitimate
+     * use, so it cannot be pinned to gitlab.com. It must still be validated:
+     * without this an authenticated caller can point the server at
+     * 127.0.0.1, 169.254.169.254 or RFC1918 space and read the result back
+     * through the branches/projects fields.
+     */
+    const base = apiBaseFromUserInput(gitlabUrl);
 
-    const response = await fetch(url, {
+    if (!base) {
+      return json({ error: 'gitlab_url_not_allowed' }, { status: 400 });
+    }
+
+    // Fetch user's projects from GitLab API
+    const url = `${base}/api/v4/projects?membership=true&per_page=100&order_by=updated_at&sort=desc`;
+
+    const response = await safeFetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
