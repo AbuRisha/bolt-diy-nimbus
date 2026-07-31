@@ -1,8 +1,28 @@
 import { json } from '@remix-run/cloudflare';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
 import { withSecurity } from '~/lib/security';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
+
+/*
+ * NOTE: withSecurity() enforces allowedMethods and rateLimit only. Its
+ * `requireAuth` option is declared in the type signature but never read by the
+ * implementation, so it grants no authentication. The requireBuilderAuth calls
+ * below are what actually gate these handlers.
+ *
+ * The token below resolves as `cookie key || server env`, so a caller sending
+ * no cookie spends the container's GitHub credential. The `get_token` branch
+ * returns that credential's value in the response body — wrong even for an
+ * authenticated caller; git auth belongs behind a server-side proxy. Removing
+ * the branch is tracked separately; this change closes the anonymous path.
+ */
 
 async function githubUserLoader({ request, context }: { request: Request; context: any }) {
+  const denied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     // Get API keys from cookies (server-side only)
     const cookieHeader = request.headers.get('Cookie');
@@ -71,6 +91,12 @@ export const loader = withSecurity(githubUserLoader, {
 });
 
 async function githubUserAction({ request, context }: { request: Request; context: any }) {
+  const denied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     let action: string | null = null;
     let repoFullName: string | null = null;

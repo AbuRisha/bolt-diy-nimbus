@@ -1,8 +1,29 @@
 import { json } from '@remix-run/cloudflare';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
 import { withSecurity } from '~/lib/security';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
+
+/*
+ * NOTE: withSecurity() enforces allowedMethods and rateLimit only. Its
+ * `requireAuth` option is declared in the type signature but never read by the
+ * implementation, so it grants no authentication. The requireBuilderAuth calls
+ * below are what actually gate these handlers.
+ *
+ * The token below resolves as `cookie key || server env`, so a caller sending
+ * no cookie spends the container's Supabase credential. `get_api_keys` returns
+ * project api_key values verbatim, which include the service_role key that
+ * bypasses Row Level Security — returning that to a browser is wrong even for
+ * an authenticated caller. Removing the branch is tracked separately; this
+ * change closes the anonymous path.
+ */
 
 async function supabaseUserLoader({ request, context }: { request: Request; context: any }) {
+  const denied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     // Get API keys from cookies (server-side only)
     const cookieHeader = request.headers.get('Cookie');
@@ -82,6 +103,12 @@ export const loader = withSecurity(supabaseUserLoader, {
 });
 
 async function supabaseUserAction({ request, context }: { request: Request; context: any }) {
+  const denied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     const formData = await request.formData();
     const action = formData.get('action');
