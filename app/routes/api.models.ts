@@ -3,6 +3,7 @@ import { LLMManager } from '~/lib/modules/llm/manager';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import type { ProviderInfo } from '~/types/model';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
+import { resolveNimbusEnv, requireNimbusSession } from '~/lib/.server/nimbus-sso';
 
 interface ModelsResponse {
   modelList: ModelInfo[];
@@ -51,6 +52,15 @@ export async function loader({
     };
   };
 }): Promise<Response> {
+  // Auth guard: verify nimbus_session cookie with aud === 'builder' before
+  // returning any model or provider information.
+  const env = resolveNimbusEnv(context.cloudflare?.env);
+  const session = await requireNimbusSession(request, env);
+
+  if (!session) {
+    return json({ error: 'unauthorized', code: 'no_builder_session' }, { status: 401 });
+  }
+
   const llmManager = LLMManager.getInstance(context.cloudflare?.env);
 
   // Get client side maintained API keys and provider settings from cookies

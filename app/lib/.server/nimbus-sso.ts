@@ -227,3 +227,39 @@ export function getNimbusUpstreamBase(env: NimbusEnv): string {
 
   return raw.endsWith('/') ? raw.slice(0, -1) : raw;
 }
+
+// ── Inference route guard ────────────────────────────────────────────────────
+
+export const BUILDER_AUDIENCE = 'builder';
+
+/**
+ * Guards inference and model-discovery routes. Verifies the `nimbus_session`
+ * cookie signature AND enforces aud === 'builder'. Returns null on any
+ * failure so there is no env-key fallback for unauthenticated callers.
+ *
+ * Usage: call at the very top of every action/loader that touches LLM
+ * inference or the model list, before request.json() or any upstream call.
+ *
+ *   const session = await requireNimbusSession(request, env);
+ *   if (!session) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, ... });
+ */
+export async function requireNimbusSession(
+  request: Request,
+  env: NimbusEnv,
+): Promise<NimbusSession | null> {
+  const session = await readNimbusSessionFromRequest(request, env);
+
+  if (!session) {
+    return null;
+  }
+
+  const aud = session.payload.aud;
+  const hasBuilderAud =
+    aud === BUILDER_AUDIENCE || (Array.isArray(aud) && aud.includes(BUILDER_AUDIENCE));
+
+  if (!hasBuilderAud) {
+    return null;
+  }
+
+  return session;
+}
