@@ -16,14 +16,16 @@ interface ConfiguredProvidersResponse {
 
 /**
  * API endpoint that detects which providers are configured via environment variables
- * This helps auto-enable providers that have been set up by the user.
- *
- * Guarded: reports booleans only, but an unauthenticated caller should not be
- * able to enumerate this deployment's provisioning.
+ * This helps auto-enable providers that have been set up by the user
  */
 export const loader: LoaderFunction = async ({ context, request }) => {
-  const nimbusEnv = resolveNimbusEnv(context?.cloudflare?.env);
-  const denied = await requireBuilderAuth(request, nimbusEnv);
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. Kept outside the try/catch below so a
+   * denial is never swallowed into the default-state fallback response.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
 
   if (denied) {
     return denied;

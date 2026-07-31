@@ -1,4 +1,5 @@
 import { json, type LoaderFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 interface GitInfo {
   local: {
@@ -73,6 +74,21 @@ export const loader: LoaderFunction = async ({ request, context }: LoaderFunctio
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       },
     });
+  }
+
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. Everything below either proxies the
+   * GitHub API with a server-side token or discloses build/repo metadata, so
+   * it must be gated before the token lookup and the upstream call. The
+   * CORS preflight above stays ungated on purpose: browsers send OPTIONS
+   * without credentials and it returns no data.
+   */
+  const nimbusEnv = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, nimbusEnv);
+
+  if (denied) {
+    return denied;
   }
 
   const { searchParams } = new URL(request.url);

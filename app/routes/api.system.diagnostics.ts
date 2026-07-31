@@ -1,4 +1,5 @@
 import { json, type LoaderFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 /**
  * Diagnostic API for troubleshooting connection issues
@@ -12,6 +13,19 @@ interface AppContext {
 }
 
 export const loader: LoaderFunction = async ({ request, context }: LoaderFunctionArgs & { context: AppContext }) => {
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. This endpoint discloses which server-side
+   * tokens are configured plus request/host details, so it must be gated
+   * before any env lookup or upstream probe.
+   */
+  const nimbusEnv = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, nimbusEnv);
+
+  if (denied) {
+    return denied;
+  }
+
   // Get environment variables
   const envVars = {
     hasGithubToken: Boolean(process.env.GITHUB_ACCESS_TOKEN || context.env?.GITHUB_ACCESS_TOKEN),

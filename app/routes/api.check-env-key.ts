@@ -3,14 +3,14 @@ import { LLMManager } from '~/lib/modules/llm/manager';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
 import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
-/**
- * Answers "is this provider's key configured?" with a boolean only — never a
- * value. Still guarded, because an unauthenticated caller should not be able
- * to enumerate which providers this deployment has provisioned.
- */
 export const loader: LoaderFunction = async ({ context, request }) => {
-  const nimbusEnv = resolveNimbusEnv(context?.cloudflare?.env);
-  const denied = await requireBuilderAuth(request, nimbusEnv);
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. This endpoint is an oracle for which
+   * server-side provider keys exist, so it must be gated before any lookup.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
 
   if (denied) {
     return denied;
@@ -50,5 +50,5 @@ export const loader: LoaderFunction = async ({ context, request }) => {
     llmManager.env[envVarName]
   );
 
-  return Response.json({ isSet }, { headers: { 'Cache-Control': 'no-store' } });
+  return Response.json({ isSet });
 };

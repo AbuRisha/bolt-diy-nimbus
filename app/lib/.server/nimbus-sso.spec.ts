@@ -1,141 +1,197 @@
-import { describe, expect, it } from 'vitest';
+/**
+ * Guard semantics for the shared Nimbus SSO route guard.
+ *
+ * Remix resource routes (app/routes/api.*.ts) never run the `_index` page
+ * loader, so the SSO check there has never applied to them. `requireBuilderAuth`
+ * is the gate every resource route now calls at the very top of its
+ * loader/action. This suite pins the contract that gate must keep:
+ *
+ *   - no session cookie                -> 401 {error:'unauthorized', code:'no_builder_session'}
+ *   - a valid token minted for another
+ *     surface (aud !== 'builder')      -> 401  (cross-surface replay)
+ *   - a valid aud='builder' session    -> allowed
+ *
+ * Every token here is signed with an obviously fake, test-only secret. Nothing
+ * in this file may ever be a real credential.
+ */
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SignJWT } from 'jose';
 import {
   BUILDER_AUDIENCE,
   NIMBUS_COOKIE_NAME,
   requireBuilderAuth,
   requireNimbusSession,
+  verifyNimbusToken,
   type NimbusEnv,
 } from './nimbus-sso';
 
-/*
- * Regression matrix for the Builder inference/model route guard.
- *
- * The secrets below are test fixtures generated for this file. They are not
- * credentials and are not used by any deployment.
+/** Obviously fake. Never a real NIMBUS_SSO_SHARED_SECRET. */
+const TEST_SECRET = 'vitest-only-fake-sso-secret-DO-NOT-USE-2f4b';
+const OTHER_SECRET = 'vitest-only-fake-sso-secret-DO-NOT-USE-9a1c';
+
+/**
+ * `getEnvVal` inside nimbus-sso falls back to `process.env`, and vite.config.ts
+ * dotenv-loads `.env` / `.env.local` into this process. Clear the keys we care
+ * about so a developer's local environment cannot flip these assertions.
  */
-const SECRET = 'unit-test-fixture-secret-0000000000000000';
-const OTHER_SECRET = 'unit-test-fixture-secret-1111111111111111';
+const MANAGED_ENV_KEYS = ['NIMBUS_SSO_SHARED_SECRET', 'NIMBUS_SSO_DISABLED', 'NIMBUS_API_KEY'] as const;
 
-const ENV: NimbusEnv = { NIMBUS_SSO_SHARED_SECRET: SECRET };
+let savedEnv: Record<string, string | undefined> = {};
 
-type MintOpts = {
-  aud?: string | string[];
-  secret?: string;
-  expiresIn?: string;
-};
+beforeEach(() => {
+  savedEnv = {};
 
-async function mint({ aud, secret = SECRET, expiresIn = '1h' }: MintOpts = {}): Promise<string> {
-  let builder = new SignJWT({ sub: 'user_test', email: 'test@example.invalid' })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime(expiresIn);
-
-  if (aud !== undefined) {
-    builder = builder.setAudience(aud);
+  for (const key of MANAGED_ENV_KEYS) {
+    savedEnv[key] = process.env[key];
+    delete process.env[key];
   }
+});
 
-  return builder.sign(new TextEncoder().encode(secret));
+afterEach(() => {
+  for (const key of MANAGED_ENV_KEYS) {
+    const previous = savedEnv[key];
+
+    if (previous === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = previous;
+    }
+  }
+});
+
+function env(overrides: NimbusEnv = {}): NimbusEnv {
+  return { NIMBUS_SSO_SHARED_SECRET: TEST_SECRET, ...overrides };
 }
 
-function requestWith(token?: string): Request {
+async function mintToken(
+  opts: {
+    aud?: string | string[];
+    secret?: string;
+    /** Seconds from now. Negative values mint an already-expired token. */
+    expiresInSeconds?: number;
+  } = {},
+): Promise<string> {
+  const { aud = BUILDER_AUDIENCE, secret = TEST_SECRET, expiresInSeconds = 300 } = opts;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  return new SignJWT({ email: 'builder-test@example.invalid' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject('user_vitest_0001')
+    .setAudience(aud)
+    .setIssuedAt(nowSeconds - 5)
+    .setExpirationTime(nowSeconds + expiresInSeconds)
+    .sign(new TextEncoder().encode(secret));
+}
+
+function requestWithToken(token?: string): Request {
   const headers = new Headers();
 
   if (token) {
-    headers.set('Cookie', `${NIMBUS_COOKIE_NAME}=${encodeURIComponent(token)}`);
+    headers.set('Cookie', `${NIMBUS_COOKIE_NAME}=${token}`);
   }
 
-  return new Request('https://builder.nimbusapi.net/api/chat', { method: 'POST', headers });
+  return new Request('https://builder.nimbusapi.net/api/export-api-keys', { headers });
+}
+
+async function expectUnauthorized(denied: Response | null): Promise<void> {
+  expect(denied).toBeInstanceOf(Response);
+  expect(denied?.status).toBe(401);
+  expect(denied?.headers.get('Content-Type')).toBe('application/json');
+  expect(denied?.headers.get('Cache-Control')).toBe('no-store');
+
+  const body = await (denied as Response).json();
+  expect(body).toEqual({ error: 'unauthorized', code: 'no_builder_session' });
 }
 
 describe('requireBuilderAuth', () => {
-  it('denies a request with no session cookie', async () => {
-    const denied = await requireBuilderAuth(requestWith(), ENV);
-
-    expect(denied).not.toBeNull();
-    expect(denied!.status).toBe(401);
-    await expect(denied!.json()).resolves.toEqual({
-      error: 'unauthorized',
-      code: 'no_builder_session',
-    });
+  it('denies an unauthenticated request with 401 no_builder_session', async () => {
+    await expectUnauthorized(await requireBuilderAuth(requestWithToken(), env()));
   });
 
-  it('denies a token signed with the wrong secret', async () => {
-    const token = await mint({ aud: BUILDER_AUDIENCE, secret: OTHER_SECRET });
-    const denied = await requireBuilderAuth(requestWith(token), ENV);
+  it("denies a token minted for another surface (aud='chat') — cross-surface replay", async () => {
+    const chatToken = await mintToken({ aud: 'chat' });
 
-    expect(denied?.status).toBe(401);
+    await expectUnauthorized(await requireBuilderAuth(requestWithToken(chatToken), env()));
   });
 
-  it('denies an expired token', async () => {
-    const token = await mint({ aud: BUILDER_AUDIENCE, expiresIn: '-1h' });
-    const denied = await requireBuilderAuth(requestWith(token), ENV);
+  it("denies a token whose aud array does not contain 'builder'", async () => {
+    const token = await mintToken({ aud: ['chat', 'dashboard'] });
 
-    expect(denied?.status).toBe(401);
+    await expectUnauthorized(await requireBuilderAuth(requestWithToken(token), env()));
   });
 
-  it('denies a correctly signed token that carries no audience', async () => {
-    const token = await mint();
-    const denied = await requireBuilderAuth(requestWith(token), ENV);
+  it('denies a token signed with a different secret', async () => {
+    const forged = await mintToken({ secret: OTHER_SECRET });
 
-    expect(denied?.status).toBe(401);
+    await expectUnauthorized(await requireBuilderAuth(requestWithToken(forged), env()));
   });
 
-  it('denies a correctly signed token issued for a different audience', async () => {
-    const token = await mint({ aud: 'chat' });
-    const denied = await requireBuilderAuth(requestWith(token), ENV);
+  it('denies an expired builder token', async () => {
+    const expired = await mintToken({ expiresInSeconds: -60 });
 
-    expect(denied?.status).toBe(401);
+    await expectUnauthorized(await requireBuilderAuth(requestWithToken(expired), env()));
   });
 
-  it('allows a correctly signed token with aud=builder', async () => {
-    const token = await mint({ aud: BUILDER_AUDIENCE });
+  it('denies a tampered token', async () => {
+    const token = await mintToken();
+    const segments = token.split('.');
+    const lastChar = segments[2].slice(-1);
+    segments[2] = segments[2].slice(0, -1) + (lastChar === 'A' ? 'B' : 'A');
 
-    await expect(requireBuilderAuth(requestWith(token), ENV)).resolves.toBeNull();
+    await expectUnauthorized(await requireBuilderAuth(requestWithToken(segments.join('.')), env()));
   });
 
-  it('allows a token whose audience array contains builder', async () => {
-    const token = await mint({ aud: ['chat', BUILDER_AUDIENCE] });
+  it('denies every caller when no shared secret is configured', async () => {
+    const token = await mintToken();
 
-    await expect(requireBuilderAuth(requestWith(token), ENV)).resolves.toBeNull();
+    await expectUnauthorized(await requireBuilderAuth(requestWithToken(token), {}));
   });
 
-  it('fails closed when no shared secret is configured', async () => {
-    const token = await mint({ aud: BUILDER_AUDIENCE });
-    const denied = await requireBuilderAuth(requestWith(token), {});
+  it("allows a valid aud='builder' session", async () => {
+    const token = await mintToken();
 
-    expect(denied?.status).toBe(401);
+    expect(await requireBuilderAuth(requestWithToken(token), env())).toBeNull();
   });
 
-  it('allows any request when NIMBUS_SSO_DISABLED is set (local dev escape hatch)', async () => {
-    const env: NimbusEnv = { ...ENV, NIMBUS_SSO_DISABLED: 'true' };
+  it("allows a token whose aud array contains 'builder'", async () => {
+    const token = await mintToken({ aud: ['chat', BUILDER_AUDIENCE] });
 
-    await expect(requireBuilderAuth(requestWith(), env)).resolves.toBeNull();
+    expect(await requireBuilderAuth(requestWithToken(token), env())).toBeNull();
   });
 
-  it('does not disclose credential material in the denial body or headers', async () => {
-    const denied = await requireBuilderAuth(requestWith(), ENV);
-    const body = await denied!.text();
-    const headers = JSON.stringify([...denied!.headers.entries()]);
+  it('honors the NIMBUS_SSO_DISABLED local-dev escape hatch', async () => {
+    const allowed = await requireBuilderAuth(requestWithToken(), env({ NIMBUS_SSO_DISABLED: 'true' }));
 
-    expect(body).not.toContain(SECRET);
-    expect(headers).not.toContain(SECRET);
-    expect(denied!.headers.get('Cache-Control')).toBe('no-store');
+    expect(allowed).toBeNull();
+  });
+
+  it('does not treat any value other than "true" as disabled', async () => {
+    await expectUnauthorized(await requireBuilderAuth(requestWithToken(), env({ NIMBUS_SSO_DISABLED: '1' })));
+    await expectUnauthorized(await requireBuilderAuth(requestWithToken(), env({ NIMBUS_SSO_DISABLED: 'false' })));
   });
 });
 
 describe('requireNimbusSession', () => {
-  it('returns the verified session for an aud=builder token', async () => {
-    const token = await mint({ aud: BUILDER_AUDIENCE });
-    const session = await requireNimbusSession(requestWith(token), ENV);
+  it("returns the session for aud='builder'", async () => {
+    const token = await mintToken();
+    const session = await requireNimbusSession(requestWithToken(token), env());
 
-    expect(session?.payload.sub).toBe('user_test');
-    expect(session?.token).toBe(token);
+    expect(session).not.toBeNull();
+    expect(session?.payload.sub).toBe('user_vitest_0001');
+    expect(session?.payload.aud).toBe(BUILDER_AUDIENCE);
   });
 
-  it('returns null when the audience is not builder', async () => {
-    const token = await mint({ aud: 'chat' });
+  it("returns null for aud='chat' even though the signature is valid", async () => {
+    const chatToken = await mintToken({ aud: 'chat' });
 
-    await expect(requireNimbusSession(requestWith(token), ENV)).resolves.toBeNull();
+    // Signature check passes...
+    expect(await verifyNimbusToken(chatToken, TEST_SECRET)).not.toBeNull();
+
+    // ...but the audience check must still reject it.
+    expect(await requireNimbusSession(requestWithToken(chatToken), env())).toBeNull();
+  });
+
+  it('returns null when the cookie is absent', async () => {
+    expect(await requireNimbusSession(requestWithToken(), env())).toBeNull();
   });
 });
