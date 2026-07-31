@@ -139,9 +139,34 @@ export function isAllowedUrl(input: string): boolean {
   }
 
   const url = new URL(input);
+
+  /*
+   * Credentials in the URL. `https://user:pass@evil.tld` would send those to
+   * the upstream, and the userinfo section is also a classic way to disguise
+   * the real host from a human reviewer — `https://gitlab.com@127.0.0.1/`
+   * has a hostname of 127.0.0.1, not gitlab.com.
+   */
+  if (url.username !== '' || url.password !== '') {
+    return false;
+  }
+
   const hostname = url.hostname.toLowerCase();
 
   if (hostname.length === 0 || hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    return false;
+  }
+
+  /*
+   * Internal naming suffixes. These resolve only inside a private network, so
+   * a request for one is either a mistake or a probe. `.home.arpa` is the
+   * RFC 8375 home-network suffix; `.internal` is what GCP hands out.
+   */
+  if (
+    hostname.endsWith('.internal') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.home.arpa') ||
+    hostname === 'metadata.google.internal'
+  ) {
     return false;
   }
 
@@ -157,6 +182,31 @@ export function isAllowedUrl(input: string): boolean {
   }
 
   return true;
+}
+
+/**
+ * Normalise a caller-supplied API base URL, or return null if it is not safe
+ * to fetch.
+ *
+ * Callers build request URLs by concatenation (`${base}/api/v4/...`), which is
+ * exploitable on its own even when the host is allowed: a base of
+ * `https://attacker.tld/collect?x=#` swallows the appended path into a
+ * fragment, so the server requests the attacker's URL instead of the intended
+ * endpoint. Returning origin + pathname only — with the query, fragment and
+ * any trailing slash removed — makes that impossible.
+ *
+ * Returns null rather than throwing so the caller can answer 400 rather than
+ * surfacing an exception.
+ */
+export function apiBaseFromUserInput(input: string): string | null {
+  if (typeof input !== 'string' || input.trim() === '' || !isAllowedUrl(input)) {
+    return null;
+  }
+
+  const url = new URL(input);
+  const path = url.pathname.replace(/\/+$/, '');
+
+  return `${url.origin}${path}`;
 }
 
 export interface SafeFetchOptions {
