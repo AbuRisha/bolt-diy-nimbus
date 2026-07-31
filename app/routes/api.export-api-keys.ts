@@ -1,44 +1,33 @@
 import type { LoaderFunction } from '@remix-run/cloudflare';
-import { LLMManager } from '~/lib/modules/llm/manager';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
+/**
+ * Returns the caller's own provider keys, as held in their cookie.
+ *
+ * This route deliberately does NOT read provider credentials out of the
+ * server environment. It previously merged
+ * `context.cloudflare.env[apiTokenKey] || process.env[apiTokenKey] ||
+ * llmManager.env[apiTokenKey]` into the response, which handed every
+ * server-side provider credential to the browser — and, with no auth guard,
+ * to any anonymous caller.
+ *
+ * Server-side credentials stay server-side: the streamText pipeline and
+ * api.nimbus-proxy resolve them directly from env and never round-trip them
+ * through the client. If a caller needs to know whether a provider is
+ * configured server-side, use `api.check-env-key`, which answers with a
+ * boolean and never discloses a value.
+ */
 export const loader: LoaderFunction = async ({ context, request }) => {
-  // Get API keys from cookie
-  const cookieHeader = request.headers.get('Cookie');
-  const apiKeysFromCookie = getApiKeysFromCookie(cookieHeader);
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
 
-  // Initialize the LLM manager to access environment variables
-  const llmManager = LLMManager.getInstance(context?.cloudflare?.env as any);
-
-  // Get all provider instances to find their API token keys
-  const providers = llmManager.getAllProviders();
-
-  // Create a comprehensive API keys object
-  const apiKeys: Record<string, string> = { ...apiKeysFromCookie };
-
-  // For each provider, check all possible sources for API keys
-  for (const provider of providers) {
-    if (!provider.config.apiTokenKey) {
-      continue;
-    }
-
-    const envVarName = provider.config.apiTokenKey;
-
-    // Skip if we already have this provider's key from cookies
-    if (apiKeys[provider.name]) {
-      continue;
-    }
-
-    // Check environment variables in order of precedence
-    const envValue =
-      (context?.cloudflare?.env as Record<string, any>)?.[envVarName] ||
-      process.env[envVarName] ||
-      llmManager.env[envVarName];
-
-    if (envValue) {
-      apiKeys[provider.name] = envValue;
-    }
+  if (denied) {
+    return denied;
   }
 
-  return Response.json(apiKeys);
+  const cookieHeader = request.headers.get('Cookie');
+  const apiKeys: Record<string, string> = { ...getApiKeysFromCookie(cookieHeader) };
+
+  return Response.json(apiKeys, { headers: { 'Cache-Control': 'no-store' } });
 };

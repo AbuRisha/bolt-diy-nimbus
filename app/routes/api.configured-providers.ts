@@ -2,6 +2,7 @@ import type { LoaderFunction } from '@remix-run/cloudflare';
 import { json } from '@remix-run/cloudflare';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 interface ConfiguredProvider {
   name: string;
@@ -15,9 +16,19 @@ interface ConfiguredProvidersResponse {
 
 /**
  * API endpoint that detects which providers are configured via environment variables
- * This helps auto-enable providers that have been set up by the user
+ * This helps auto-enable providers that have been set up by the user.
+ *
+ * Guarded: reports booleans only, but an unauthenticated caller should not be
+ * able to enumerate this deployment's provisioning.
  */
-export const loader: LoaderFunction = async ({ context }) => {
+export const loader: LoaderFunction = async ({ context, request }) => {
+  const nimbusEnv = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, nimbusEnv);
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     const llmManager = LLMManager.getInstance(context?.cloudflare?.env as any);
     const configuredProviders: ConfiguredProvider[] = [];

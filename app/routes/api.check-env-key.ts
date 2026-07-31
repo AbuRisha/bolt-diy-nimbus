@@ -1,8 +1,21 @@
 import type { LoaderFunction } from '@remix-run/cloudflare';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
+/**
+ * Answers "is this provider's key configured?" with a boolean only — never a
+ * value. Still guarded, because an unauthenticated caller should not be able
+ * to enumerate which providers this deployment has provisioned.
+ */
 export const loader: LoaderFunction = async ({ context, request }) => {
+  const nimbusEnv = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, nimbusEnv);
+
+  if (denied) {
+    return denied;
+  }
+
   const url = new URL(request.url);
   const provider = url.searchParams.get('provider');
 
@@ -37,5 +50,5 @@ export const loader: LoaderFunction = async ({ context, request }) => {
     llmManager.env[envVarName]
   );
 
-  return Response.json({ isSet });
+  return Response.json({ isSet }, { headers: { 'Cache-Control': 'no-store' } });
 };
