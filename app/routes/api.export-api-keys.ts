@@ -1,44 +1,50 @@
+/**
+ * GET /api/export-api-keys
+ *
+ * Exports the caller's OWN bring-your-own-key credentials so they can be saved
+ * or migrated. Backs the "Export API Keys" action in Settings > Data
+ * (app/lib/hooks/useDataOperations.ts).
+ *
+ * SECURITY
+ * --------
+ * This loader previously iterated every registered provider's `apiTokenKey`
+ * and returned whatever it found in `context.cloudflare.env`, `process.env`, or
+ * `llmManager.env`. Because Remix resource routes do not run the `_index`
+ * loader, no session check applied, so the operator's server-side provider
+ * credentials were served in plaintext to any unauthenticated GET.
+ *
+ * Two independent changes close it, and both are load-bearing:
+ *   1. A valid `aud='builder'` session is required, via the shared guard.
+ *   2. Server environment variables are never consulted here at all. Only the
+ *      keys the caller themselves supplied via cookie are returned. A user's
+ *      own key is theirs to export; the operator's key is not, and holding a
+ *      session must not grant it.
+ *
+ * Do NOT reintroduce an env-var lookup in this file. If a caller needs to know
+ * whether the server has a key configured for a provider, that is a boolean
+ * question — `/api/check-env-key` answers it with `{ isSet }` and never
+ * discloses a value.
+ */
 import type { LoaderFunction } from '@remix-run/cloudflare';
-import { LLMManager } from '~/lib/modules/llm/manager';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export const loader: LoaderFunction = async ({ context, request }) => {
-  // Get API keys from cookie
-  const cookieHeader = request.headers.get('Cookie');
-  const apiKeysFromCookie = getApiKeysFromCookie(cookieHeader);
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
 
-  // Initialize the LLM manager to access environment variables
-  const llmManager = LLMManager.getInstance(context?.cloudflare?.env as any);
-
-  // Get all provider instances to find their API token keys
-  const providers = llmManager.getAllProviders();
-
-  // Create a comprehensive API keys object
-  const apiKeys: Record<string, string> = { ...apiKeysFromCookie };
-
-  // For each provider, check all possible sources for API keys
-  for (const provider of providers) {
-    if (!provider.config.apiTokenKey) {
-      continue;
-    }
-
-    const envVarName = provider.config.apiTokenKey;
-
-    // Skip if we already have this provider's key from cookies
-    if (apiKeys[provider.name]) {
-      continue;
-    }
-
-    // Check environment variables in order of precedence
-    const envValue =
-      (context?.cloudflare?.env as Record<string, any>)?.[envVarName] ||
-      process.env[envVarName] ||
-      llmManager.env[envVarName];
-
-    if (envValue) {
-      apiKeys[provider.name] = envValue;
-    }
+  if (denied) {
+    return denied;
   }
 
-  return Response.json(apiKeys);
+  const apiKeysFromCookie = getApiKeysFromCookie(request.headers.get('Cookie'));
+
+  return new Response(JSON.stringify(apiKeysFromCookie ?? {}), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      // Never let a shared cache hold one caller's credentials.
+      'Cache-Control': 'private, no-store',
+    },
+  });
 };

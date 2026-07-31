@@ -2,6 +2,7 @@ import type { LoaderFunction } from '@remix-run/cloudflare';
 import { json } from '@remix-run/cloudflare';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 interface ConfiguredProvider {
   name: string;
@@ -17,7 +18,19 @@ interface ConfiguredProvidersResponse {
  * API endpoint that detects which providers are configured via environment variables
  * This helps auto-enable providers that have been set up by the user
  */
-export const loader: LoaderFunction = async ({ context }) => {
+export const loader: LoaderFunction = async ({ context, request }) => {
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. Kept outside the try/catch below so a
+   * denial is never swallowed into the default-state fallback response.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     const llmManager = LLMManager.getInstance(context?.cloudflare?.env as any);
     const configuredProviders: ConfiguredProvider[] = [];

@@ -1,8 +1,21 @@
 import type { LoaderFunction } from '@remix-run/cloudflare';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export const loader: LoaderFunction = async ({ context, request }) => {
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. This endpoint is an oracle for which
+   * server-side provider keys exist, so it must be gated before any lookup.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   const url = new URL(request.url);
   const provider = url.searchParams.get('provider');
 
