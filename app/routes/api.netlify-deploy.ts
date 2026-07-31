@@ -1,6 +1,7 @@
 import { type ActionFunctionArgs, json } from '@remix-run/cloudflare';
 import crypto from 'crypto';
 import type { NetlifySiteInfo } from '~/types/netlify';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 interface DeployRequestBody {
   siteId?: string;
@@ -25,7 +26,19 @@ async function readNetlifyError(response: Response) {
   }
 }
 
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, context }: ActionFunctionArgs) {
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. Kept outside the try below because that
+   * catch returns a generic 500 and would otherwise swallow the 401.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     const { siteId, files, token, chatId } = (await request.json()) as DeployRequestBody & { token: string };
 

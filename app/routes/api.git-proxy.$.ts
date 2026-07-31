@@ -1,5 +1,7 @@
 import { json } from '@remix-run/cloudflare';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
+import { safeFetch, validateExternalUrl, urlGuardErrorResponse } from '~/lib/.server/url-guard';
 
 // Allowed headers to forward to the target server
 const ALLOW_HEADERS = [
@@ -42,12 +44,59 @@ const EXPOSE_HEADERS = [
   'x-redirected-url',
 ];
 
+function corsPreflightResponse() {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': ALLOW_HEADERS.join(', '),
+      'Access-Control-Expose-Headers': EXPOSE_HEADERS.join(', '),
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+}
+
 // Handle all HTTP methods
-export async function action({ request, params }: ActionFunctionArgs) {
+export async function action({ request, params, context }: ActionFunctionArgs) {
+  /*
+   * CORS preflight stays ungated on purpose: browsers send OPTIONS without
+   * credentials and it returns no data. Everything else is gated below.
+   */
+  if (request.method === 'OPTIONS') {
+    return corsPreflightResponse();
+  }
+
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. This route is a server-side fetch proxy,
+   * so it must be gated before the destination is built or contacted. Kept
+   * outside handleProxyRequest's try/catch so a 401 can never be downgraded
+   * into the catch-all error response.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   return handleProxyRequest(request, params['*']);
 }
 
-export async function loader({ request, params }: LoaderFunctionArgs) {
+export async function loader({ request, params, context }: LoaderFunctionArgs) {
+  if (request.method === 'OPTIONS') {
+    return corsPreflightResponse();
+  }
+
+  // Same guard as `action` — see the comment there.
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   return handleProxyRequest(request, params['*']);
 }
 
@@ -55,20 +104,6 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
   try {
     if (!path) {
       return json({ error: 'Invalid proxy URL format' }, { status: 400 });
-    }
-
-    // Handle CORS preflight request
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        status: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Access-Control-Allow-Headers': ALLOW_HEADERS.join(', '),
-          'Access-Control-Expose-Headers': EXPOSE_HEADERS.join(', '),
-          'Access-Control-Max-Age': '86400',
-        },
-      });
     }
 
     // Extract domain and remaining path
@@ -85,7 +120,21 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
     const url = new URL(request.url);
     const targetURL = `https://${domain}/${remainingPath}${url.search}`;
 
-    console.log('Target URL:', targetURL);
+    /*
+     * SSRF guard: the destination is fully caller-controlled, so an
+     * authenticated caller could otherwise point this proxy at loopback,
+     * RFC1918 space or the cloud metadata endpoint. Validate before any
+     * outbound request is made.
+     */
+    const validated = validateExternalUrl(targetURL);
+
+    if (!validated.ok) {
+      return urlGuardErrorResponse(validated);
+    }
+
+    const target = validated.url;
+
+    console.log('Target URL:', target.toString());
 
     // Filter and prepare headers
     const headers = new Headers();
@@ -97,25 +146,30 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
       }
     }
 
-    // Set the host header
-    headers.set('Host', domain);
+    // Set the host header from the validated target, never from the raw input
+    headers.set('Host', target.host);
 
     // Set Git user agent if not already present
     if (!headers.has('user-agent') || !headers.get('user-agent')?.startsWith('git/')) {
       headers.set('User-Agent', 'git/@isomorphic-git/cors-proxy');
     }
 
-    console.log('Request headers:', Object.fromEntries(headers.entries()));
+    /*
+     * Deliberately not logging the forwarded header set: ALLOW_HEADERS
+     * includes `authorization`, and dumping it would write the caller's
+     * credential into the server log.
+     */
 
     // Prepare fetch options
     const fetchOptions: RequestInit = {
       method: request.method,
       headers,
-      redirect: 'follow',
     };
 
+    const hasBody = !['GET', 'HEAD'].includes(request.method);
+
     // Add body for non-GET/HEAD requests
-    if (!['GET', 'HEAD'].includes(request.method)) {
+    if (hasBody) {
       fetchOptions.body = request.body;
       fetchOptions.duplex = 'half';
 
@@ -125,8 +179,20 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
        */
     }
 
-    // Forward the request to the target URL
-    const response = await fetch(targetURL, fetchOptions);
+    /*
+     * Forward the request. Redirects are never followed blindly — safeFetch
+     * re-validates every hop, because a permitted host can answer with a 302
+     * pointing at a private address. Bodied requests are not auto-followed
+     * since a streamed body cannot be replayed on the next hop; the validated
+     * 3xx is handed back to the caller instead.
+     */
+    const result = await safeFetch(target, fetchOptions, { followRedirects: !hasBody });
+
+    if (!result.ok) {
+      return urlGuardErrorResponse(result.rejection);
+    }
+
+    const { response, finalUrl, redirected } = result;
 
     console.log('Response status:', response.status);
 
@@ -152,8 +218,8 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
     }
 
     // If the response was redirected, add the x-redirected-url header
-    if (response.redirected) {
-      responseHeaders.set('x-redirected-url', response.url);
+    if (redirected) {
+      responseHeaders.set('x-redirected-url', finalUrl);
     }
 
     console.log('Response headers:', Object.fromEntries(responseHeaders.entries()));

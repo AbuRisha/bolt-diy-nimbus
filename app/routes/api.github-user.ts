@@ -66,6 +66,7 @@ async function githubUserLoader({ request, context }: { request: Request; contex
 }
 
 export const loader = withSecurity(githubUserLoader, {
+  requireAuth: true,
   rateLimit: true,
   allowedMethods: ['GET'],
 });
@@ -195,12 +196,18 @@ async function githubUserAction({ request, context }: { request: Request; contex
       });
     }
 
-    if (action === 'get_token') {
-      // Return the GitHub token for git authentication
-      return json({
-        token: githubToken,
-      });
-    }
+    /*
+     * `get_token` was removed 2026-07-31. It returned the resolved GitHub
+     * token verbatim in the response body, and that token can resolve from
+     * server-side env (GITHUB_TOKEN / VITE_GITHUB_ACCESS_TOKEN via
+     * context.cloudflare.env or process.env), so the endpoint could hand the
+     * operator's credential to a caller. The same shape was already confirmed
+     * leaking in production on /api/export-api-keys.
+     *
+     * It had no callers anywhere in the app. If a future feature needs to
+     * authenticate a git operation, proxy the operation server-side rather
+     * than shipping the credential to the client.
+     */
 
     if (action === 'search_repos') {
       if (!searchQuery) {
@@ -282,6 +289,7 @@ async function githubUserAction({ request, context }: { request: Request; contex
 }
 
 export const action = withSecurity(githubUserAction, {
+  requireAuth: true,
   rateLimit: true,
   allowedMethods: ['POST'],
 });

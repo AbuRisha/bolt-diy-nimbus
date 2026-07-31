@@ -1,9 +1,18 @@
 import { json } from '@remix-run/cloudflare';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
 import { withSecurity } from '~/lib/security';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 import type { GitHubUserResponse, GitHubStats } from '~/types/GitHub';
 
 async function githubStatsLoader({ request, context }: { request: Request; context: any }) {
+  // Auth guard: resource routes never run the _index page loader. Kept outside the try so the 401 is not downgraded.
+  const nimbusEnv = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, nimbusEnv);
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     // Get API keys from cookies (server-side only)
     const cookieHeader = request.headers.get('Cookie');

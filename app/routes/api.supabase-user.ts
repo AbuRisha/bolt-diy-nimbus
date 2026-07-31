@@ -1,8 +1,21 @@
 import { json } from '@remix-run/cloudflare';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
 import { withSecurity } from '~/lib/security';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 async function supabaseUserLoader({ request, context }: { request: Request; context: any }) {
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. Kept outside the try below because that
+   * catch returns a generic 500 and would otherwise swallow the 401.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     // Get API keys from cookies (server-side only)
     const cookieHeader = request.headers.get('Cookie');
@@ -82,6 +95,20 @@ export const loader = withSecurity(supabaseUserLoader, {
 });
 
 async function supabaseUserAction({ request, context }: { request: Request; context: any }) {
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. The `get_api_keys` branch below returns
+   * raw project API keys, so this must gate before any body parse or lookup.
+   * Kept outside the try because that catch returns a generic 500 and would
+   * otherwise swallow the 401.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     const formData = await request.formData();
     const action = formData.get('action');

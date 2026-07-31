@@ -1,5 +1,12 @@
 /**
  * URL validation utilities with SSRF protection.
+ *
+ * DEPRECATED for server-side fetches. This check is name-level only and does
+ * not cover IPv6 loopback/ULA/link-local, the `.internal` / `.local` /
+ * `.localhost` suffixes, embedded credentials, or redirect hops. Server routes
+ * that fetch a caller-supplied destination MUST use `validateExternalUrl` /
+ * `safeFetch` from `~/lib/.server/url-guard` instead. Kept here only for
+ * client-side shape checks.
  */
 
 const PRIVATE_IP_PATTERNS = [

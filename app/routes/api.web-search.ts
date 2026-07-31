@@ -1,6 +1,7 @@
 import { json } from '@remix-run/cloudflare';
 import type { ActionFunctionArgs } from '@remix-run/cloudflare';
-import { isAllowedUrl } from '~/utils/url';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
+import { safeFetch, validateExternalUrl } from '~/lib/.server/url-guard';
 
 const MAX_CONTENT_LENGTH = 8000;
 
@@ -47,9 +48,23 @@ function extractTextContent(html: string): string {
     .trim();
 }
 
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, context }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
     return json({ error: 'Method not allowed' }, { status: 405 });
+  }
+
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. This route fetches a caller-supplied URL
+   * server-side, so it must be gated before the body is parsed and before any
+   * outbound request. Kept outside the try/catch below so a 401 can never be
+   * downgraded into the catch-all error response.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
   }
 
   try {
@@ -59,14 +74,35 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ error: 'URL is required' }, { status: 400 });
     }
 
-    if (!isAllowedUrl(url)) {
-      return json({ error: 'URL is not allowed. Only public HTTP/HTTPS URLs are accepted.' }, { status: 400 });
+    /*
+     * SSRF guard: authentication alone does not stop an authenticated caller
+     * from pointing this at loopback, RFC1918 space or the cloud metadata
+     * endpoint, so validate the destination before fetching it.
+     */
+    const validated = validateExternalUrl(url);
+
+    if (!validated.ok) {
+      return json({ error: validated.reason, code: validated.code }, { status: 400 });
     }
 
-    const response = await fetch(url, {
-      headers: FETCH_HEADERS,
-      signal: AbortSignal.timeout(10_000),
-    });
+    /*
+     * safeFetch re-validates every redirect hop: a permitted host is free to
+     * answer with a 302 pointing at a private address.
+     */
+    const result = await safeFetch(
+      validated.url,
+      {
+        headers: FETCH_HEADERS,
+        signal: AbortSignal.timeout(10_000),
+      },
+      { maxRedirects: 5 },
+    );
+
+    if (!result.ok) {
+      return json({ error: result.rejection.reason, code: result.rejection.code }, { status: 400 });
+    }
+
+    const { response } = result;
 
     if (!response.ok) {
       return json({ error: `Failed to fetch URL: ${response.status} ${response.statusText}` }, { status: 502 });

@@ -1,5 +1,6 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, json } from '@remix-run/cloudflare';
 import type { VercelProjectInfo } from '~/types/vercel';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Function to detect framework from project files
 const detectFramework = (files: Record<string, string>): string => {
@@ -173,7 +174,19 @@ const detectFramework = (files: Record<string, string>): string => {
 };
 
 // Add loader function to handle GET requests
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader({ request, context }: LoaderFunctionArgs) {
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. Kept outside the try below because that
+   * catch returns a generic 500 and would otherwise swallow the 401.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   const url = new URL(request.url);
   const projectId = url.searchParams.get('projectId');
   const token = url.searchParams.get('token');
@@ -240,7 +253,19 @@ interface DeployRequestBody {
 }
 
 // Existing action function for POST requests
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, context }: ActionFunctionArgs) {
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. Kept outside the try below because that
+   * catch returns a generic 500 and would otherwise swallow the 401.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     const { projectId, files, sourceFiles, token, chatId, framework } = (await request.json()) as DeployRequestBody & {
       token: string;

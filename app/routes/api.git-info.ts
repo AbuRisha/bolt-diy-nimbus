@@ -1,8 +1,17 @@
-import { json } from '@remix-run/cloudflare';
+import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
-export async function loader() {
+export async function loader({ request, context }: LoaderFunctionArgs) {
+  // Auth guard: resource routes never run the _index page loader. Kept outside the try so the 401 is not downgraded.
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     // Check if we're in a git repository
     if (!existsSync('.git')) {

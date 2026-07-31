@@ -1,6 +1,7 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { Octokit } from '@octokit/rest';
 import { z } from 'zod';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Rate limiting store (in production, use Redis or similar)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -142,6 +143,20 @@ function formatIssueBody(data: z.infer<typeof bugReportSchema>): string {
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
+  /*
+   * Auth guard: resource routes never run the _index page loader, so the SSO
+   * check there does not apply here. This endpoint spends the operator's
+   * GITHUB_BUG_REPORT_TOKEN, so it must gate before any body parse or lookup.
+   * Kept outside the try below because that catch returns a generic 500 and
+   * would otherwise swallow the 401.
+   */
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   // Only allow POST requests
   if (request.method !== 'POST') {
     return json({ error: 'Method not allowed' }, { status: 405 });

@@ -1,4 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Rate limiting store (in-memory for serverless environments)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -203,6 +204,34 @@ export function withSecurity<T extends (args: ActionFunctionArgs | LoaderFunctio
             'Retry-After': Math.ceil((rateLimitResult.resetTime! - Date.now()) / 1000).toString(),
             'X-RateLimit-Reset': rateLimitResult.resetTime!.toString(),
           },
+        });
+      }
+    }
+
+    /*
+     * Authentication. `requireAuth` was previously declared in the options
+     * type but never read, so a caller passing `requireAuth: true` got no
+     * protection at all — a silently unenforced security flag. It is now
+     * wired to the same builder-session guard every other route uses.
+     *
+     * Placed after rate limiting so that unauthenticated traffic is still
+     * throttled, and outside the try/catch below so a denial can never be
+     * swallowed and downgraded into a handler response.
+     */
+    if (options.requireAuth) {
+      const nimbusEnv = resolveNimbusEnv((args.context as any)?.cloudflare?.env);
+      const denied = await requireBuilderAuth(request, nimbusEnv);
+
+      if (denied) {
+        const deniedHeaders = new Headers(denied.headers);
+        Object.entries(createSecurityHeaders()).forEach(([key, value]) => {
+          deniedHeaders.set(key, value);
+        });
+
+        return new Response(denied.body, {
+          status: denied.status,
+          statusText: denied.statusText,
+          headers: deniedHeaders,
         });
       }
     }
