@@ -175,36 +175,17 @@ async function supabaseUserAction({ request, context }: { request: Request; cont
       });
     }
 
+    /*
+     * `get_api_keys` used to proxy /v1/projects/{id}/api-keys and return the
+     * key values verbatim. Those include the project's service_role key, which
+     * bypasses Row Level Security entirely. It is removed: the request ran on
+     * the server-resolved Supabase token, so any caller could read keys for
+     * every project on the operator's account, and no session entitles a
+     * browser to a service_role key. A project's anon key belongs in the
+     * generated app's own configuration, not in a response from this route.
+     */
     if (action === 'get_api_keys') {
-      const projectId = formData.get('projectId');
-
-      if (!projectId) {
-        return json({ error: 'Project ID is required' }, { status: 400 });
-      }
-
-      // Fetch project API keys
-      const response = await fetch(`https://api.supabase.com/v1/projects/${projectId}/api-keys`, {
-        headers: {
-          Authorization: `Bearer ${supabaseToken}`,
-          'User-Agent': 'bolt.diy-app',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Supabase API error: ${response.status}`);
-      }
-
-      const apiKeys = (await response.json()) as Array<{
-        name: string;
-        api_key: string;
-      }>;
-
-      return json({
-        apiKeys: apiKeys.map((key) => ({
-          name: key.name,
-          api_key: key.api_key,
-        })),
-      });
+      return json({ error: 'get_api_keys is no longer supported' }, { status: 410 });
     }
 
     return json({ error: 'Invalid action' }, { status: 400 });

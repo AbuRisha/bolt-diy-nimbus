@@ -1,5 +1,7 @@
 import { json } from '@remix-run/cloudflare';
+import { isAllowedUrl } from '~/utils/url';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Allowed headers to forward to the target server
 const ALLOW_HEADERS = [
@@ -44,10 +46,22 @@ const EXPOSE_HEADERS = [
 
 // Handle all HTTP methods
 export async function action({ request, params }: ActionFunctionArgs) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   return handleProxyRequest(request, params['*']);
 }
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   return handleProxyRequest(request, params['*']);
 }
 
@@ -84,6 +98,19 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
     // Reconstruct the target URL with query parameters
     const url = new URL(request.url);
     const targetURL = `https://${domain}/${remainingPath}${url.search}`;
+
+    /*
+     * The domain comes straight from the request path, so without this the
+     * route is an open relay: any caller could name an internal host and have
+     * the server fetch it from inside the network, with the caller's
+     * `authorization` header forwarded along. isAllowedUrl rejects literal
+     * private/loopback/link-local addresses in every IPv4 and IPv6 encoding.
+     * A hostname that RESOLVES into private space still gets through — see the
+     * note in app/utils/url.ts — so this route stays session-gated as well.
+     */
+    if (!isAllowedUrl(targetURL)) {
+      return json({ error: 'target_not_allowed' }, { status: 400 });
+    }
 
     console.log('Target URL:', targetURL);
 

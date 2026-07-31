@@ -1,6 +1,7 @@
 import { json } from '@remix-run/cloudflare';
 import { withSecurity } from '~/lib/security';
 import type { GitLabProjectInfo } from '~/types/GitLab';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 interface GitLabProject {
   id: number;
@@ -17,6 +18,12 @@ interface GitLabProject {
 }
 
 async function gitlabProjectsLoader({ request }: { request: Request }) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   try {
     const body: any = await request.json();
     const { token, gitlabUrl = 'https://gitlab.com' } = body;

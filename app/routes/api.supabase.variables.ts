@@ -1,6 +1,13 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export async function action({ request }: ActionFunctionArgs) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   try {
     // Add proper type assertion for the request body
     const body = (await request.json()) as { projectId?: string; token?: string };

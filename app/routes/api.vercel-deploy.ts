@@ -1,5 +1,6 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, json } from '@remix-run/cloudflare';
 import type { VercelProjectInfo } from '~/types/vercel';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Function to detect framework from project files
 const detectFramework = (files: Record<string, string>): string => {
@@ -174,6 +175,12 @@ const detectFramework = (files: Record<string, string>): string => {
 
 // Add loader function to handle GET requests
 export async function loader({ request }: LoaderFunctionArgs) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   const url = new URL(request.url);
   const projectId = url.searchParams.get('projectId');
   const token = url.searchParams.get('token');
@@ -241,6 +248,12 @@ interface DeployRequestBody {
 
 // Existing action function for POST requests
 export async function action({ request }: ActionFunctionArgs) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   try {
     const { projectId, files, sourceFiles, token, chatId, framework } = (await request.json()) as DeployRequestBody & {
       token: string;

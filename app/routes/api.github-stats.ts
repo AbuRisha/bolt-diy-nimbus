@@ -2,8 +2,15 @@ import { json } from '@remix-run/cloudflare';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
 import { withSecurity } from '~/lib/security';
 import type { GitHubUserResponse, GitHubStats } from '~/types/GitHub';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 async function githubStatsLoader({ request, context }: { request: Request; context: any }) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   try {
     // Get API keys from cookies (server-side only)
     const cookieHeader = request.headers.get('Cookie');

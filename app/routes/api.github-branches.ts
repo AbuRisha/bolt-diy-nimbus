@@ -1,6 +1,7 @@
 import { json } from '@remix-run/cloudflare';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
 import { withSecurity } from '~/lib/security';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 interface GitHubBranch {
   name: string;
@@ -19,6 +20,12 @@ interface BranchInfo {
 }
 
 async function githubBranchesLoader({ request, context }: { request: Request; context: any }) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   try {
     let owner: string;
     let repo: string;

@@ -1,9 +1,16 @@
 import { type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { createScopedLogger } from '~/utils/logger';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 const logger = createScopedLogger('api.supabase.query');
 
 export async function action({ request }: ActionFunctionArgs) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }

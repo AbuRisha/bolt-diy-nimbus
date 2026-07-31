@@ -1,8 +1,15 @@
-import { json } from '@remix-run/cloudflare';
+import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
-export async function loader() {
+export async function loader({ request, context }: LoaderFunctionArgs) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   try {
     // Check if we're in a git repository
     if (!existsSync('.git')) {

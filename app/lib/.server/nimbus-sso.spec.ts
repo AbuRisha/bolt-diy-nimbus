@@ -132,13 +132,40 @@ describe('requireBuilderAuth', () => {
     await expectUnauthorized(await requireBuilderAuth(requestWithToken(expired), env()));
   });
 
-  it('denies a tampered token', async () => {
+  it('denies a token whose signature has been tampered with', async () => {
     const token = await mintToken();
     const segments = token.split('.');
-    const lastChar = segments[2].slice(-1);
-    segments[2] = segments[2].slice(0, -1) + (lastChar === 'A' ? 'B' : 'A');
+
+    /*
+     * Flip a character in the MIDDLE of the signature, not the last one. An
+     * HMAC-SHA256 signature is 32 bytes, which base64url-encodes to 43
+     * characters carrying 258 bits — the final character's low 2 bits are
+     * padding and decode to nothing. Flipping only those (e.g. 'A' -> 'B')
+     * yields the same 32 bytes, so the signature still verifies and the test
+     * asserts nothing.
+     */
+    const sig = segments[2];
+    const mid = Math.floor(sig.length / 2);
+    segments[2] = sig.slice(0, mid) + (sig[mid] === 'A' ? 'B' : 'A') + sig.slice(mid + 1);
+
+    expect(segments[2]).not.toBe(sig);
 
     await expectUnauthorized(await requireBuilderAuth(requestWithToken(segments.join('.')), env()));
+  });
+
+  it('denies a token whose payload has been tampered with', async () => {
+    const token = await mintToken({ aud: 'chat' });
+    const [header, payload, signature] = token.split('.');
+
+    // Re-encode the payload claiming aud='builder', keeping the original signature.
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    decoded.aud = BUILDER_AUDIENCE;
+
+    const forgedPayload = Buffer.from(JSON.stringify(decoded), 'utf8').toString('base64url');
+
+    await expectUnauthorized(
+      await requireBuilderAuth(requestWithToken([header, forgedPayload, signature].join('.')), env()),
+    );
   });
 
   it('denies every caller when no shared secret is configured', async () => {

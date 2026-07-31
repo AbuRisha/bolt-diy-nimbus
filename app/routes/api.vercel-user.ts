@@ -1,8 +1,15 @@
 import { json } from '@remix-run/cloudflare';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
 import { withSecurity } from '~/lib/security';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 async function vercelUserLoader({ request, context }: { request: Request; context: any }) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   try {
     // Get API keys from cookies (server-side only)
     const cookieHeader = request.headers.get('Cookie');
@@ -78,6 +85,12 @@ export const loader = withSecurity(vercelUserLoader, {
 });
 
 async function vercelUserAction({ request, context }: { request: Request; context: any }) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   try {
     const formData = await request.formData();
     const action = formData.get('action');

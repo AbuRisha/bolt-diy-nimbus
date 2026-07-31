@@ -1,6 +1,7 @@
 import { json } from '@remix-run/cloudflare';
 import type { ActionFunctionArgs } from '@remix-run/cloudflare';
-import { isAllowedUrl } from '~/utils/url';
+import { isAllowedUrl, safeFetch } from '~/utils/url';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 const MAX_CONTENT_LENGTH = 8000;
 
@@ -48,6 +49,12 @@ function extractTextContent(html: string): string {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   if (request.method !== 'POST') {
     return json({ error: 'Method not allowed' }, { status: 405 });
   }
@@ -63,7 +70,13 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ error: 'URL is not allowed. Only public HTTP/HTTPS URLs are accepted.' }, { status: 400 });
     }
 
-    const response = await fetch(url, {
+    /*
+     * safeFetch drives redirects manually and revalidates every hop. Plain
+     * fetch() follows redirects internally, so the isAllowedUrl check above
+     * would only ever see the first URL and a public host could 302 us into
+     * private address space.
+     */
+    const response = await safeFetch(url, {
       headers: FETCH_HEADERS,
       signal: AbortSignal.timeout(10_000),
     });

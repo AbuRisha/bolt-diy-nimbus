@@ -11,29 +11,45 @@ interface ModelsResponse {
   defaultProvider: ProviderInfo;
 }
 
+/*
+ * Provider info derives from the registry plus the NIMBUS_ONLY flag, both fixed
+ * for the life of the process, so caching cannot go stale per request.
+ */
 let cachedProviders: ProviderInfo[] | null = null;
 let cachedDefaultProvider: ProviderInfo | null = null;
 
+type ProviderLike = {
+  name: string;
+  staticModels: ModelInfo[];
+  getApiKeyLink?: string;
+  labelForGetApiKey?: string;
+  icon?: string;
+};
+
+function toProviderInfo(provider: ProviderLike): ProviderInfo {
+  return {
+    name: provider.name,
+    staticModels: provider.staticModels,
+    getApiKeyLink: provider.getApiKeyLink,
+    labelForGetApiKey: provider.labelForGetApiKey,
+    icon: provider.icon,
+  };
+}
+
 function getProviderInfo(llmManager: LLMManager) {
   if (!cachedProviders) {
-    cachedProviders = llmManager.getAllProviders().map((provider) => ({
-      name: provider.name,
-      staticModels: provider.staticModels,
-      getApiKeyLink: provider.getApiKeyLink,
-      labelForGetApiKey: provider.labelForGetApiKey,
-      icon: provider.icon,
-    }));
+    /*
+     * getPrimaryProviders() is the Nimbus provider alone under NIMBUS_ONLY, and
+     * the full registry otherwise. Filtering here rather than in the UI is the
+     * point: this route used to return all 23 providers and ~486 models to
+     * every caller and rely on the client to hide what a customer must not
+     * see, which is not a boundary.
+     */
+    cachedProviders = llmManager.getPrimaryProviders().map(toProviderInfo);
   }
 
   if (!cachedDefaultProvider) {
-    const defaultProvider = llmManager.getDefaultProvider();
-    cachedDefaultProvider = {
-      name: defaultProvider.name,
-      staticModels: defaultProvider.staticModels,
-      getApiKeyLink: defaultProvider.getApiKeyLink,
-      labelForGetApiKey: defaultProvider.labelForGetApiKey,
-      icon: defaultProvider.icon,
-    };
+    cachedDefaultProvider = toProviderInfo(llmManager.getDefaultProvider());
   }
 
   return { providers: cachedProviders, defaultProvider: cachedDefaultProvider };
@@ -52,8 +68,7 @@ export async function loader({
     };
   };
 }): Promise<Response> {
-  // Auth guard: a builder session (aud='builder') is required before any
-  // model or provider information is returned.
+  // A builder session (aud='builder') is required before any roster is returned.
   const env = resolveNimbusEnv(context.cloudflare?.env);
   const denied = await requireBuilderAuth(request, env);
 
@@ -69,12 +84,21 @@ export async function loader({
   const providerSettings = getProviderSettingsFromCookie(cookieHeader);
 
   const { providers, defaultProvider } = getProviderInfo(llmManager);
+  const nimbusOnly = llmManager.isNimbusOnlyMode();
 
   let modelList: ModelInfo[] = [];
 
   if (params.provider) {
-    // Only update models for the specific provider
     const provider = llmManager.getProvider(params.provider);
+
+    /*
+     * The per-provider route shares this loader. Under NIMBUS_ONLY a caller
+     * must not be able to name a non-Nimbus provider directly and get its
+     * roster back, which would walk straight around the filtering above.
+     */
+    if (nimbusOnly && provider && !provider.isNimbus) {
+      return json({ error: 'provider_not_available' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
+    }
 
     if (provider) {
       modelList = await llmManager.getModelListFromProvider(provider, {
@@ -84,17 +108,29 @@ export async function loader({
       });
     }
   } else {
-    // Update all models
     modelList = await llmManager.updateModelList({
       apiKeys,
       providerSettings,
       serverEnv: context.cloudflare?.env,
     });
+
+    /*
+     * updateModelList() refreshes the whole registry, including providers that
+     * are not advertised under NIMBUS_ONLY. Narrow the response to the models
+     * belonging to the providers we actually return.
+     */
+    if (nimbusOnly) {
+      const exposed = new Set(providers.map((p) => p.name));
+      modelList = modelList.filter((model) => exposed.has(model.provider));
+    }
   }
 
-  return json<ModelsResponse>({
-    modelList,
-    providers,
-    defaultProvider,
-  });
+  return json<ModelsResponse>(
+    {
+      modelList,
+      providers,
+      defaultProvider,
+    },
+    { headers: { 'Cache-Control': 'private, no-store' } },
+  );
 }

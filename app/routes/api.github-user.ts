@@ -221,11 +221,17 @@ async function githubUserAction({ request, context }: { request: Request; contex
       });
     }
 
+    /*
+     * `get_token` used to return the resolved GitHub token value to the
+     * browser for git authentication. It is removed: the token resolves as
+     * `caller cookie key || server env`, so an operator-configured credential
+     * could be read out over HTTP, and a session does not entitle a caller to
+     * the operator's credential. Git operations that need authentication must
+     * go through a server-side path that holds the token (see
+     * api.git-proxy.$.ts) rather than shipping it to the client.
+     */
     if (action === 'get_token') {
-      // Return the GitHub token for git authentication
-      return json({
-        token: githubToken,
-      });
+      return json({ error: 'get_token is no longer supported' }, { status: 410 });
     }
 
     if (action === 'search_repos') {

@@ -1,5 +1,6 @@
 import { json } from '@remix-run/cloudflare';
 import { withSecurity } from '~/lib/security';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 interface GitLabBranch {
   name: string;
@@ -21,6 +22,12 @@ interface BranchInfo {
 }
 
 async function gitlabBranchesLoader({ request }: { request: Request }) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(undefined));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   try {
     const body: any = await request.json();
     const { token, gitlabUrl = 'https://gitlab.com', projectId } = body;

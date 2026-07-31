@@ -1,4 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Rate limiting store (in-memory for serverless environments)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -182,6 +183,22 @@ export function withSecurity<T extends (args: ActionFunctionArgs | LoaderFunctio
     const { request } = args;
     const url = new URL(request.url);
     const endpoint = url.pathname;
+
+    /*
+     * Authentication. This option was previously declared in the signature but
+     * never read, so `withSecurity(handler, { requireAuth: true })` looked
+     * protected in review while granting nothing. It is now enforced, and it
+     * runs before the method and rate-limit checks so an unauthenticated
+     * caller cannot use those responses as an oracle.
+     */
+    if (options.requireAuth) {
+      const env = resolveNimbusEnv((args.context as any)?.cloudflare?.env);
+      const denied = await requireBuilderAuth(request, env);
+
+      if (denied) {
+        return denied;
+      }
+    }
 
     // Check allowed methods
     if (options.allowedMethods && !options.allowedMethods.includes(request.method)) {

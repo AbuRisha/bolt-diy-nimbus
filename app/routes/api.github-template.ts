@@ -1,5 +1,6 @@
 import { json } from '@remix-run/cloudflare';
 import JSZip from 'jszip';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Function to detect if we're running in Cloudflare
 function isCloudflareEnvironment(context: any): boolean {
@@ -202,6 +203,12 @@ async function fetchRepoContentsZip(repo: string, githubToken?: string) {
 }
 
 export async function loader({ request, context }: { request: Request; context: any }) {
+  const __nimbusDenied = await requireBuilderAuth(request, resolveNimbusEnv(context?.cloudflare?.env));
+
+  if (__nimbusDenied) {
+    return __nimbusDenied;
+  }
+
   const url = new URL(request.url);
   const repo = url.searchParams.get('repo');
 
