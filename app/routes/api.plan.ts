@@ -2,6 +2,7 @@ import { type ActionFunctionArgs, json } from '@remix-run/cloudflare';
 import { classifyAndQuestion } from '~/lib/agent/clarify';
 import { researchReference, type ReferenceDigest } from '~/lib/agent/research';
 import { createScopedLogger } from '~/utils/logger';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 const logger = createScopedLogger('api.plan');
 
@@ -17,6 +18,15 @@ const logger = createScopedLogger('api.plan');
 export async function action({ context, request }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
     return json({ error: 'method_not_allowed' }, { status: 405 });
+  }
+
+  // Auth guard: the classifier and reference research both spend server-side
+  // LLM budget, so a builder session (aud='builder') is required.
+  const env = resolveNimbusEnv(context?.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
   }
 
   try {

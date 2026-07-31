@@ -228,20 +228,15 @@ export function getNimbusUpstreamBase(env: NimbusEnv): string {
   return raw.endsWith('/') ? raw.slice(0, -1) : raw;
 }
 
-// ── Inference route guard ────────────────────────────────────────────────────
+// ── Inference route guards ──────────────────────────────────────────────
 
 export const BUILDER_AUDIENCE = 'builder';
 
 /**
- * Guards inference and model-discovery routes. Verifies the `nimbus_session`
- * cookie signature AND enforces aud === 'builder'. Returns null on any
- * failure so there is no env-key fallback for unauthenticated callers.
- *
- * Usage: call at the very top of every action/loader that touches LLM
- * inference or the model list, before request.json() or any upstream call.
- *
- *   const session = await requireNimbusSession(request, env);
- *   if (!session) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, ... });
+ * Strict session check for inference and model-discovery routes. Verifies
+ * the `nimbus_session` cookie signature AND enforces aud === 'builder'.
+ * Returns null on any failure so there is no env-key fallback for
+ * unauthenticated callers.
  */
 export async function requireNimbusSession(
   request: Request,
@@ -262,4 +257,39 @@ export async function requireNimbusSession(
   }
 
   return session;
+}
+
+/**
+ * Route-level guard for inference/model routes. Returns a 401 JSON Response
+ * when the request must be denied, or null when the request may proceed —
+ * either a valid aud='builder' session, or NIMBUS_SSO_DISABLED=true (the
+ * local-dev/CI escape hatch already honored by api.nimbus-proxy; production
+ * never sets it).
+ *
+ * Usage, at the very top of every inference/model action or loader, before
+ * request.json() or any upstream call:
+ *
+ *   const env = resolveNimbusEnv(context.cloudflare?.env);
+ *   const denied = await requireBuilderAuth(request, env);
+ *   if (denied) return denied;
+ */
+export async function requireBuilderAuth(request: Request, env: NimbusEnv): Promise<Response | null> {
+  if (isNimbusSsoDisabled(env)) {
+    return null;
+  }
+
+  const session = await requireNimbusSession(request, env);
+
+  if (!session) {
+    return new Response(JSON.stringify({ error: 'unauthorized', code: 'no_builder_session' }), {
+      status: 401,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        'WWW-Authenticate': 'NimbusSSO realm="builder.nimbusapi.net"',
+      },
+    });
+  }
+
+  return null;
 }

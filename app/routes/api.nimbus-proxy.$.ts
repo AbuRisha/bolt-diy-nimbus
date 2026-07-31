@@ -3,7 +3,7 @@ import {
   getNimbusApiKey,
   getNimbusUpstreamBase,
   isNimbusSsoDisabled,
-  readNimbusSessionFromRequest,
+  requireNimbusSession,
   resolveNimbusEnv,
 } from '~/lib/.server/nimbus-sso';
 import { createScopedLogger } from '~/utils/logger';
@@ -48,7 +48,8 @@ type ProxyArgs = LoaderFunctionArgs | ActionFunctionArgs;
  * Same-origin passthrough to `api.nimbusapi.net/v1/*`.
  *
  * Requirements enforced:
- *   - Requires a valid Nimbus session cookie (unless NIMBUS_SSO_DISABLED=true).
+ *   - Requires a valid Nimbus session cookie with aud='builder' (unless
+ *     NIMBUS_SSO_DISABLED=true).
  *   - Never trusts the client `Authorization` header — injects the resolved
  *     upstream key server-side (per-session token if the JWT carried one,
  *     otherwise NIMBUS_API_KEY).
@@ -64,7 +65,7 @@ type ProxyArgs = LoaderFunctionArgs | ActionFunctionArgs;
  */
 async function handleProxy({ request, context, params }: ProxyArgs): Promise<Response> {
   const env = resolveNimbusEnv((context as any)?.cloudflare?.env);
-  const session = await readNimbusSessionFromRequest(request, env);
+  const session = await requireNimbusSession(request, env);
   const ssoDisabled = isNimbusSsoDisabled(env);
 
   if (!ssoDisabled && !session) {

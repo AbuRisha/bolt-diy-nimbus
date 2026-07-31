@@ -15,7 +15,7 @@ import type { DesignScheme } from '~/types/design-scheme';
 import { MCPService } from '~/lib/services/mcpService';
 import { StreamRecoveryManager } from '~/lib/.server/llm/stream-recovery';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
-import { resolveNimbusEnv, requireNimbusSession } from '~/lib/.server/nimbus-sso';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -30,16 +30,14 @@ const logger = createScopedLogger('api.chat');
 // getApiKeysFromCookie / getProviderSettingsFromCookie imports above.
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
-  // Auth guard: verify nimbus_session cookie with aud === 'builder' before
-  // parsing the request body or touching any upstream key.
+  // Auth guard: a builder session (aud='builder') is required before the
+  // request body is parsed or any upstream key is resolved. Honors
+  // NIMBUS_SSO_DISABLED for local dev, matching api.nimbus-proxy.
   const env = resolveNimbusEnv(context.cloudflare?.env);
-  const session = await requireNimbusSession(request, env);
+  const denied = await requireBuilderAuth(request, env);
 
-  if (!session) {
-    return new Response(JSON.stringify({ error: 'unauthorized', code: 'no_builder_session' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (denied) {
+    return denied;
   }
 
   const streamRecovery = new StreamRecoveryManager({
@@ -389,13 +387,11 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
           if (typeof chunk === 'string') {
             if (chunk.startsWith('g') && !lastChunk.startsWith('g')) {
-              controller.enqueue(encoder.encode(`0: "<div class=\\"__boltThought__\\">"
-`));
+              controller.enqueue(encoder.encode(`0: "<div class=\\"__boltThought__\\">"\n`));
             }
 
             if (lastChunk.startsWith('g') && !chunk.startsWith('g')) {
-              controller.enqueue(encoder.encode(`0: "</div>\\n"
-`));
+              controller.enqueue(encoder.encode(`0: "</div>\\n"\n`));
             }
           }
 

@@ -8,6 +8,7 @@ import { LLMManager } from '~/lib/modules/llm/manager';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export async function action(args: ActionFunctionArgs) {
   return llmCallAction(args);
@@ -65,6 +66,15 @@ function validateTokenLimits(modelDetails: ModelInfo, requestedTokens: number): 
 }
 
 async function llmCallAction({ context, request }: ActionFunctionArgs) {
+  // Auth guard: a builder session (aud='builder') is required before the
+  // request body is parsed or any upstream key is resolved.
+  const env = resolveNimbusEnv(context.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   const { system, message, model, provider, streamOutput } = await request.json<{
     system: string;
     message: string;

@@ -4,6 +4,7 @@ import { stripIndents } from '~/utils/stripIndent';
 import type { ProviderInfo } from '~/types/model';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
+import { resolveNimbusEnv, requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export async function action(args: ActionFunctionArgs) {
   return enhancerAction(args);
@@ -12,6 +13,15 @@ export async function action(args: ActionFunctionArgs) {
 const logger = createScopedLogger('api.enhancher');
 
 async function enhancerAction({ context, request }: ActionFunctionArgs) {
+  // Auth guard: a builder session (aud='builder') is required before the
+  // request body is parsed or any upstream key is resolved.
+  const env = resolveNimbusEnv(context.cloudflare?.env);
+  const denied = await requireBuilderAuth(request, env);
+
+  if (denied) {
+    return denied;
+  }
+
   const { message, model, provider } = await request.json<{
     message: string;
     model: string;
