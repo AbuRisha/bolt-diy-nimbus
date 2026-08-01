@@ -13,6 +13,12 @@ import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
 import NimbusCompanion from './NimbusCompanion';
+import {
+  COMPANION_DONE_VISIBLE_MS,
+  nextCompanionState,
+  type CompanionEvent,
+  type CompanionState,
+} from './nimbusCompanionState';
 import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
@@ -37,12 +43,45 @@ export function Chat() {
 
   const { ready, initialMessages, storeMessageHistory, importChat, exportChat } = useChatHistory();
   const title = useStore(description);
+  const [companionState, setCompanionState] = useState<CompanionState>('thinking');
+  const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     workbenchStore.setReloadedMessages(initialMessages.map((m) => m.id));
   }, [initialMessages]);
 
-  const streaming = useStore(streamingState);
-  const companionState = streaming ? 'building' : ready ? 'ready' : 'thinking';
+  useEffect(() => {
+    setCompanionState(
+      nextCompanionState(
+        ready ? { type: 'history-ready', hasHistory: initialMessages.length > 0 } : { type: 'history-loading' },
+      ),
+    );
+  }, [initialMessages.length, ready]);
+
+  useEffect(
+    () => () => {
+      if (completionTimerRef.current) {
+        clearTimeout(completionTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleCompanionEvent = useCallback((event: CompanionEvent) => {
+    if (completionTimerRef.current) {
+      clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = null;
+    }
+
+    setCompanionState(nextCompanionState(event));
+
+    if (event.type === 'completed') {
+      completionTimerRef.current = setTimeout(() => {
+        setCompanionState(nextCompanionState({ type: 'reset' }));
+        completionTimerRef.current = null;
+      }, COMPANION_DONE_VISIBLE_MS);
+    }
+  }, []);
 
   return (
     <>
@@ -53,6 +92,7 @@ export function Chat() {
           exportChat={exportChat}
           storeMessageHistory={storeMessageHistory}
           importChat={importChat}
+          onCompanionEvent={handleCompanionEvent}
         />
       )}
       <NimbusCompanion state={companionState} />
@@ -84,10 +124,11 @@ interface ChatProps {
   importChat: (description: string, messages: Message[]) => Promise<void>;
   exportChat: () => void;
   description?: string;
+  onCompanionEvent: (event: CompanionEvent) => void;
 }
 
 export const ChatImpl = memo(
-  ({ description, initialMessages, storeMessageHistory, importChat, exportChat }: ChatProps) => {
+  ({ description, initialMessages, storeMessageHistory, importChat, exportChat, onCompanionEvent }: ChatProps) => {
     useShortcuts();
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -158,6 +199,7 @@ export const ChatImpl = memo(
       sendExtraMessageFields: true,
       onError: (e) => {
         setFakeLoading(false);
+        onCompanionEvent({ type: 'failed' });
         handleError(e, 'chat');
       },
       onFinish: (message, response) => {
@@ -177,6 +219,7 @@ export const ChatImpl = memo(
         }
 
         logger.debug('Finished streaming');
+        onCompanionEvent({ type: 'completed' });
       },
       initialMessages,
       initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
@@ -189,12 +232,19 @@ export const ChatImpl = memo(
       if (prompt) {
         setSearchParams({});
         runAnimation();
+        onCompanionEvent({ type: 'request-started' });
         append({
           role: 'user',
           content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${prompt}`,
         });
       }
     }, [model, provider, searchParams]);
+
+    useEffect(() => {
+      if (isLoading) {
+        onCompanionEvent({ type: 'work-started' });
+      }
+    }, [isLoading, onCompanionEvent]);
 
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
     const { parsedMessages, parseMessages } = useMessageParser();
@@ -225,6 +275,7 @@ export const ChatImpl = memo(
 
     const abort = () => {
       stop();
+      onCompanionEvent({ type: 'reset' });
       chatStore.setKey('aborted', true);
       workbenchStore.abortAllActions();
 
@@ -402,6 +453,8 @@ export const ChatImpl = memo(
         abort();
         return;
       }
+
+      onCompanionEvent({ type: 'request-started' });
 
       let finalMessageContent = messageContent;
 
