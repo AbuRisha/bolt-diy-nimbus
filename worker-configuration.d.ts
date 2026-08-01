@@ -22,6 +22,8 @@ interface Env {
   NIMBUS_API_KEY: string;
   NIMBUS_API_BASE_URL: string;
   NIMBUS_ONLY: string;
+  NIMBUS_SSO_SHARED_SECRET: string;
+  NIMBUS_SSO_DISABLED: string;
   DEFAULT_PROVIDER: string;
   DEFAULT_MODEL: string;
 }

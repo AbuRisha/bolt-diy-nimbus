@@ -96,6 +96,10 @@ COPY --from=prod-deps /app/node_modules /app/node_modules
 COPY --from=prod-deps /app/package.json /app/package.json
 COPY --from=prod-deps /app/bindings.sh /app/bindings.sh
 
+# The ACA command below launches Wrangler Pages, so this file is the live
+# container-wide request boundary (including Remix resource/API routes).
+RUN test -f '/app/functions/[[path]].ts'
+
 # Pre-configure wrangler to disable metrics
 RUN mkdir -p /root/.config/.wrangler && \
     echo '{"enabled":false}' > /root/.config/.wrangler/metrics.json

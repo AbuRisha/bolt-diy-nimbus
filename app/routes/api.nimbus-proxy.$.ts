@@ -50,8 +50,8 @@ type ProxyArgs = LoaderFunctionArgs | ActionFunctionArgs;
  * Requirements enforced:
  *   - Requires a valid Nimbus session cookie (unless NIMBUS_SSO_DISABLED=true).
  *   - Never trusts the client `Authorization` header — injects the resolved
- *     upstream key server-side (per-session token if the JWT carried one,
- *     otherwise NIMBUS_API_KEY).
+ *     customer-scoped upstream key server-side. The shared reseller key is
+ *     available only when the explicit local-development SSO bypass is on.
  *   - Strips the browser's own cookies so the session cookie never leaks
  *     upstream.
  *   - Streams the response body back untouched (works for
@@ -73,11 +73,11 @@ async function handleProxy({ request, context, params }: ProxyArgs): Promise<Res
     });
   }
 
-  const apiKey = getNimbusApiKey(env, session);
+  const apiKey = getNimbusApiKey(env, session, { allowSharedKey: ssoDisabled });
 
   if (!apiKey) {
-    logger.error('Missing NIMBUS_API_KEY (and no per-session key on JWT).');
-    return json({ error: 'nimbus_api_key_unavailable' }, 500);
+    logger.error('No customer-scoped Nimbus delegation is available.');
+    return json({ error: 'nimbus_customer_delegation_required' }, 403);
   }
 
   const upstreamBase = getNimbusUpstreamBase(env);

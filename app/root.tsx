@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react';
-import type { LinksFunction } from '@remix-run/cloudflare';
+import { json, type LinksFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from '@remix-run/react';
 import tailwindReset from '@unocss/reset/tailwind-compat.css?url';
 import { themeStore } from './lib/stores/theme';
@@ -16,6 +16,14 @@ import globalStyles from './styles/index.scss?url';
 import xtermStyles from '@xterm/xterm/css/xterm.css?url';
 
 import 'virtual:uno.css';
+import { enforceNimbusAuth, resolveNimbusEnv } from './lib/.server/nimbus-sso';
+
+export async function loader({ context, request }: LoaderFunctionArgs) {
+  const env = resolveNimbusEnv((context as any)?.cloudflare?.env);
+  const authResponse = await enforceNimbusAuth(request, env);
+
+  return authResponse ?? json({ authenticated: true });
+}
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
