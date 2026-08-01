@@ -62,6 +62,7 @@ export default function NimbusCompanion({ state }: { state: CompanionState }) {
   const [visible, setVisible] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [reaction, setReaction] = useState(0);
+  const [companionAssetStatus, setCompanionAssetStatus] = useState<"loading" | "ready" | "failed">("loading");
   const [pose, setPose] = useState<Pose>({ x: 0, y: 12, facing: 1, jump: 0 });
   const [gaze, setGaze] = useState({ x: 0, y: 0 });
 
@@ -248,9 +249,28 @@ export default function NimbusCompanion({ state }: { state: CompanionState }) {
                   : { y: [0, -hop * 0.82, -hop, -hop * 0.56, 0, 2, 0], rotate: [0, pose.facing * 2, pose.facing * 4, 0, pose.facing * -2, 0], scaleX: [pose.facing, pose.facing * 0.96, pose.facing, pose.facing * 1.08, pose.facing], scaleY: [0.94, 1.08, 1.03, 0.96, 0.88, 1.05, 1] }}
                 transition={{ duration: state === "done" ? 0.75 : state === "building" ? 0.85 : 0.95, ease: [0.34, 1.25, 0.64, 1] }}
               >
-                <img src="/mascot/nimbus-companion.png" alt="" draggable={false} className="h-full w-full select-none object-contain [image-rendering:pixelated] drop-shadow-[0_8px_10px_rgba(34,211,238,0.22)]" />
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-[8px_4px_5px] flex items-center justify-center rounded-[45%_45%_38%_38%] border border-cyan-200/30 bg-[radial-gradient(circle_at_50%_28%,rgba(224,247,255,.98),rgba(126,177,255,.94)_42%,rgba(37,75,168,.96)_76%,rgba(5,20,58,.98))] shadow-[0_8px_18px_rgba(34,211,238,.22),inset_0_0_18px_rgba(255,255,255,.26)] transition-opacity duration-200 ${companionAssetStatus === "ready" ? "opacity-0" : "opacity-100"}`}
+                >
+                  <span className="absolute left-[15%] top-[5%] h-[40%] w-[70%] rounded-[48%] bg-white/25 blur-[1px]" />
+                  <span className="relative flex h-[46%] w-[68%] items-center justify-center rounded-[42%] border-2 border-cyan-100/60 bg-[#13286f] shadow-[inset_0_0_12px_rgba(34,211,238,.5)]">
+                    <Bot className="h-7 w-7 text-cyan-100 drop-shadow-[0_0_5px_rgba(103,232,249,.8)]" strokeWidth={1.8} />
+                  </span>
+                </span>
 
-                {[43.2, 66.4].map((left, index) => (
+                {companionAssetStatus !== "failed" ? (
+                  <img
+                    src="/mascot/nimbus-companion.png"
+                    alt=""
+                    draggable={false}
+                    onLoad={() => setCompanionAssetStatus("ready")}
+                    onError={() => setCompanionAssetStatus("failed")}
+                    className={`h-full w-full select-none object-contain [image-rendering:pixelated] drop-shadow-[0_8px_10px_rgba(34,211,238,0.22)] transition-opacity duration-200 ${companionAssetStatus === "ready" ? "opacity-100" : "opacity-0"}`}
+                  />
+                ) : null}
+
+                {companionAssetStatus === "ready" ? [43.2, 66.4].map((left, index) => (
                   <span key={left} className="absolute top-[37.2%] h-[12%] w-[8.5%] overflow-hidden rounded-full" style={{ left: `${left - 4.25}%` }}>
                     <motion.span
                       className="absolute inset-0 origin-center rounded-full bg-[#20347d]"
@@ -263,7 +283,7 @@ export default function NimbusCompanion({ state }: { state: CompanionState }) {
                       transition={{ type: "spring", stiffness: 430, damping: 24 }}
                     />
                   </span>
-                ))}
+                )) : null}
                 <span className={`absolute bottom-[17%] right-[12%] h-2 w-2 rounded-full border border-[#07111B] ${statusColor}`} />
               </motion.button>
 
