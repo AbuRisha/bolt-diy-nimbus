@@ -135,15 +135,16 @@ export class LLMManager {
 
   /**
    * Providers that render inside the "Advanced — bring your own key" panel.
-   * Empty when NIMBUS_ONLY mode is off (the primary picker already lists
-   * them). When on, this is every non-Nimbus provider.
+   *
+   * Currently returns [] to keep upstream vendor names (Anthropic, OpenRouter,
+   * AmazonBedrock, etc.) out of the customer-facing UI. The AdvancedProvidersPanel
+   * component returns null when this list is empty, hiding the BYOK button entirely.
+   *
+   * Re-enable by returning filtered providers once vendor-neutral display labels
+   * are implemented so no upstream brand names reach the customer UI.
    */
   getAdvancedProviders(): BaseProvider[] {
-    if (!this.isNimbusOnlyMode()) {
-      return [];
-    }
-
-    return this.getAllProviders().filter((p) => !p.isNimbus);
+    return [];
   }
 
   /**
