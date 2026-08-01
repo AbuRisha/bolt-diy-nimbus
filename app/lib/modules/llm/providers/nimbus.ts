@@ -149,15 +149,43 @@ export default class NimbusProvider extends BaseProvider {
 
       const res = (await response.json()) as NimbusModelsResponse;
 
-      // The gateway may return every reseller model — intersect with the
-      // customer-facing allowlist so we never surface undisclosed models.
-      const allowedNames = new Set(this.chatModels.map((m) => m.name));
-      const filtered = res.data
-        .filter((model) => allowedNames.has(model.id))
+      // The gateway's /v1/models IS the customer-facing catalog, so it is the
+      // source of truth here rather than something to be filtered.
+      //
+      // This previously intersected the response with `chatModels` and then
+      // re-added any static entry the gateway had NOT returned. Both halves
+      // were backwards, and together they produced exactly the picker the
+      // owner reported on 2026-08-01: 15 models offered out of 55 served.
+      //
+      //   - intersecting meant a model could never appear unless it was
+      //     already hardcoded, so 35 live models — including the flagship
+      //     anthropic/claude-opus-5 — were unreachable from the UI;
+      //   - re-adding the difference meant a model could never disappear, so
+      //     anthropic/claude-fable-5 stayed in the picker after the upstream
+      //     stopped serving it and returned model_not_found on selection.
+      //
+      // The original comment justified the intersection as "never surface
+      // undisclosed models". That risk is real but it belongs upstream, and
+      // it is handled there: the gateway only advertises priced, routable,
+      // customer-facing ids.
+      //
+      // Media models are excluded by pricing type rather than by name so the
+      // chat picker cannot offer a video or image model. /image and /video
+      // read getImageModels() / getVideoModels() and are unaffected.
+      const staticByName = new Map(this.chatModels.map((m) => [m.name, m]));
+
+      const models = res.data
+        .filter((model) => {
+          const kind = (model as { pricing?: { type?: string } }).pricing?.type;
+          return kind === undefined || kind === 'token';
+        })
         .map((model) => {
-          const staticHit = this.chatModels.find((m) => m.name === model.id);
+          const staticHit = staticByName.get(model.id);
           return {
             name: model.id,
+            // Static entries stay useful as presentation metadata: they carry
+            // the human label and real context window. Anything the gateway
+            // adds later still shows, just under its raw id until labelled.
             label: staticHit?.label ?? model.id,
             provider: this.name,
             maxTokenAllowed: staticHit?.maxTokenAllowed ?? 128000,
@@ -165,12 +193,10 @@ export default class NimbusProvider extends BaseProvider {
           };
         });
 
-      // If the gateway ever drops a model we ship in the allowlist, keep the
-      // static entry visible so customers do not lose the picker option.
-      const returnedNames = new Set(filtered.map((m) => m.name));
-      const missing = this.chatModels.filter((m) => !returnedNames.has(m.name));
-
-      return [...filtered, ...missing];
+      // A gateway that answers with an empty list is far more likely to be
+      // misconfigured than to genuinely sell nothing, so keep the static
+      // catalog rather than render an empty picker.
+      return models.length > 0 ? models : this.staticModels;
     } catch (error) {
       logger.info(`${this.name}: /models fetch failed, using static catalog`, error);
       return this.staticModels;
