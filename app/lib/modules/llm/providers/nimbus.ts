@@ -5,7 +5,20 @@ import type { LanguageModelV1 } from 'ai';
 import { logger } from '~/utils/logger';
 
 interface NimbusModelsResponse {
-  data: Array<{ id: string; owned_by?: string }>;
+  data: Array<{
+    id: string;
+    owned_by?: string;
+    /**
+     * Real context window, passed through by the gateway from upstream.
+     *
+     * Optional because the gateway OMITS it when upstream did not publish one
+     * — a missing value is an honest "unknown". Never default it to a literal
+     * here: doing exactly that is what made every row in the picker read
+     * "128K tokens".
+     */
+    context_length?: number;
+    pricing?: { type?: string };
+  }>;
 }
 
 /**
@@ -45,14 +58,24 @@ export default class NimbusProvider extends BaseProvider {
    * the primary picker on the customer-facing hosted deployment.
    */
   private chatModels: ModelInfo[] = [
-    { name: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5', provider: 'Nimbus', maxTokenAllowed: 200000, modality: 'chat' },
-    { name: 'anthropic/claude-opus-4.8', label: 'Claude Opus 4.8', provider: 'Nimbus', maxTokenAllowed: 200000, modality: 'chat' },
+    // Context windows below are the REAL ones, cross-checked against the
+    // billing catalog (nimbus-v2 lib/models.ts) on 2026-08-01. Seven of these
+    // ten were previously wrong — claude-sonnet-5, claude-opus-4.8 and kimi-k3
+    // were declared 200000 against a real 1M; gpt-5.4-mini, gpt-5.3-codex,
+    // deepseek-v4-pro and deepseek-v4-flash were declared 128000 against
+    // 400K / 400K / 1M / 256K.
+    //
+    // These are only a FALLBACK now: the gateway passes through upstream's
+    // context_length and that wins. Keep them accurate anyway — a fallback
+    // nobody checks is how the 128K bug survived.
+    { name: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5', provider: 'Nimbus', maxTokenAllowed: 1000000, modality: 'chat' },
+    { name: 'anthropic/claude-opus-4.8', label: 'Claude Opus 4.8', provider: 'Nimbus', maxTokenAllowed: 1000000, modality: 'chat' },
     { name: 'anthropic/claude-haiku-4.5', label: 'Claude Haiku 4.5', provider: 'Nimbus', maxTokenAllowed: 200000, modality: 'chat' },
-    { name: 'openai/gpt-5.4-mini', label: 'GPT-5.4 Mini', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
-    { name: 'openai/gpt-5.3-codex', label: 'GPT-5.3 Codex', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
-    { name: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
-    { name: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
-    { name: 'moonshotai/kimi-k3', label: 'Kimi K3', provider: 'Nimbus', maxTokenAllowed: 200000, modality: 'chat' },
+    { name: 'openai/gpt-5.4-mini', label: 'GPT-5.4 Mini', provider: 'Nimbus', maxTokenAllowed: 400000, modality: 'chat' },
+    { name: 'openai/gpt-5.3-codex', label: 'GPT-5.3 Codex', provider: 'Nimbus', maxTokenAllowed: 400000, modality: 'chat' },
+    { name: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro', provider: 'Nimbus', maxTokenAllowed: 1000000, modality: 'chat' },
+    { name: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash', provider: 'Nimbus', maxTokenAllowed: 256000, modality: 'chat' },
+    { name: 'moonshotai/kimi-k3', label: 'Kimi K3', provider: 'Nimbus', maxTokenAllowed: 1000000, modality: 'chat' },
     { name: 'google/gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro Preview', provider: 'Nimbus', maxTokenAllowed: 1000000, modality: 'chat' },
     { name: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash Preview', provider: 'Nimbus', maxTokenAllowed: 1000000, modality: 'chat' },
   ];
@@ -167,7 +190,28 @@ export default class NimbusProvider extends BaseProvider {
       // Media models are excluded by pricing type rather than by name so the
       // chat picker cannot offer a video or image model. /image and /video
       // read getImageModels() / getVideoModels() and are unaffected.
-      const staticByName = new Map(this.chatModels.map((m) => [m.name, m]));
+      // Indexed under BOTH the prefixed name and its bare suffix.
+      //
+      // The static roster is keyed on provider-prefixed names
+      // ('anthropic/claude-sonnet-5') while the gateway's canonical surface is
+      // BARE ids ('claude-sonnet-5'). A bare id can never match a prefixed
+      // key, so before this every lookup missed — which is why every row fell
+      // back to the hardcoded token count AND rendered its raw id instead of a
+      // human label. Prefixed entries are inserted first so an exact match
+      // always wins over a suffix collision.
+      const staticByName = new Map<string, (typeof this.chatModels)[number]>();
+
+      for (const m of this.chatModels) {
+        staticByName.set(m.name, m);
+      }
+
+      for (const m of this.chatModels) {
+        const bare = m.name.includes('/') ? m.name.slice(m.name.lastIndexOf('/') + 1) : m.name;
+
+        if (!staticByName.has(bare)) {
+          staticByName.set(bare, m);
+        }
+      }
 
       const models = res.data
         .filter((model) => {
@@ -183,7 +227,17 @@ export default class NimbusProvider extends BaseProvider {
             // adds later still shows, just under its raw id until labelled.
             label: staticHit?.label ?? model.id,
             provider: this.name,
-            maxTokenAllowed: staticHit?.maxTokenAllowed ?? 128000,
+            /*
+             * Upstream's real context window wins. The static roster is a
+             * fallback for ids upstream did not describe, and 128000 is the
+             * last resort for ones we know nothing about.
+             *
+             * Order matters: reading the gateway FIRST is the whole fix. It
+             * used to be `staticHit?.maxTokenAllowed ?? 128000`, with no
+             * gateway read at all, so the picker advertised 128K on models
+             * with a 1M window.
+             */
+            maxTokenAllowed: model.context_length ?? staticHit?.maxTokenAllowed ?? 128000,
             modality: 'chat' as const,
           };
         });
