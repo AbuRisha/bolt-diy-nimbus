@@ -332,7 +332,17 @@ export default class NimbusProvider extends BaseProvider {
 
       const models = res.data
         .filter((model) => {
-          const kind = (model as { pricing?: { type?: string } }).pricing?.type;
+          /*
+           * Read `pricing` off the interface rather than through a local cast.
+           * The cast used to be load-bearing, but `pricing` is now declared on
+           * NimbusModelsResponse, which makes it a no-op that actively hides
+           * future breakage: if the declared shape is ever corrected to match
+           * the gateway (e.g. a per-token price object), a cast would keep
+           * compiling against the stale local shape, `kind` would silently go
+           * undefined for every row, and the media filter below would degrade
+           * to "everything passes" with no type error anywhere.
+           */
+          const kind = model.pricing?.type;
           return kind === undefined || kind === 'token';
         })
         .map((model) => {
@@ -358,7 +368,24 @@ export default class NimbusProvider extends BaseProvider {
              * gateway read at all, so the picker advertised 128K on models
              * with a 1M window.
              */
-            maxTokenAllowed: model.context_length ?? staticHit?.maxTokenAllowed ?? 128000,
+            /*
+             * `> 0` rather than `??`. Nullish coalescing only falls through on
+             * null/undefined, so a gateway returning `context_length: 0` — or a
+             * negative, or a numeric string — would land straight in
+             * maxTokenAllowed instead of falling back. `response.json()` is
+             * asserted, not validated, so nothing upstream of here would catch
+             * it. The sibling provider guards the same way (fireworks.ts:111
+             * uses `||`).
+             *
+             * This is defensive rather than a known bug: the gateway omits the
+             * field when upstream is silent. But an unexamined fallback is
+             * exactly what let "128K tokens" survive on every row for weeks,
+             * so this one gets a real check.
+             */
+            maxTokenAllowed:
+              typeof model.context_length === 'number' && model.context_length > 0
+                ? model.context_length
+                : (staticHit?.maxTokenAllowed ?? 128000),
             modality: 'chat' as const,
           };
         });
