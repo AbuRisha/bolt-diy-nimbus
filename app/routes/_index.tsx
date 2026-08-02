@@ -46,6 +46,32 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
   const env = resolveNimbusEnv((context as any)?.cloudflare?.env);
   const secret = getNimbusSharedSecret(env);
 
+  // TEMPORARY DIAGNOSTIC (2026-08-02). Remove once the SSO gate is confirmed on.
+  //
+  // The gate reports enabled:false in production even though the shared secret
+  // is set on the container AND bindings.sh demonstrably emits it as a
+  // --binding. Ruled out by elimination: edge caching (direct-to-container is
+  // identical), a prerendered index.html (there is none in build/client),
+  // NIMBUS_SSO_DISABLED, and the container command. Reading the code cannot
+  // distinguish the two remaining possibilities - bindings never reach the
+  // loader, or they arrive under a shape this line does not read - so print the
+  // actual runtime shape once instead of inferring it again.
+  try {
+    const cf = (context as any)?.cloudflare;
+    console.log(
+      '[nimbus-sso-diag]',
+      JSON.stringify({
+        contextKeys: Object.keys((context as any) ?? {}),
+        hasCloudflare: Boolean(cf),
+        cloudflareKeys: cf ? Object.keys(cf) : null,
+        envKeys: cf?.env ? Object.keys(cf.env) : null,
+        secretResolved: Boolean(secret),
+      }),
+    );
+  } catch (e) {
+    console.log('[nimbus-sso-diag] failed:', String(e));
+  }
+
   // Escape hatch for local dev / CI. Also self-heals when the container was
   // deployed without a shared secret so the app doesn't hard-redirect-loop.
   if (isNimbusSsoDisabled(env) || !secret) {
