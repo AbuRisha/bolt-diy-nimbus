@@ -20,7 +20,7 @@
  * This module MUST stay under app/lib/.server so Remix never bundles it into
  * the browser (Vite treats `.server` as a server-only boundary).
  */
-import { jwtVerify, type JWTPayload } from 'jose';
+import { jwtVerify, SignJWT, type JWTPayload } from 'jose';
 
 export const NIMBUS_COOKIE_NAME = 'nimbus_session';
 export const NIMBUS_TOKEN_PARAM = 'nimbus_token';
@@ -226,4 +226,47 @@ export function getNimbusUpstreamBase(env: NimbusEnv): string {
   const raw = getEnvVal(env, 'NIMBUS_API_BASE_URL') ?? 'https://api.nimbusapi.net/v1';
 
   return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+}
+
+
+/**
+ * Audience for the SESSION token, distinct from the bootstrap token's
+ * `builder`/`chat` audience so the two can never be confused for one another.
+ */
+export const NIMBUS_SESSION_AUD = 'builder-session';
+
+/**
+ * Mint a session token from a verified bootstrap token.
+ *
+ * The bootstrap token that nimbusapi.net hands over lives SIXTY SECONDS - it is
+ * a hand-off credential, deliberately short so a copied URL is dead on arrival.
+ * Storing it as the session cookie (which is what _index.tsx did) means the
+ * session also expires in sixty seconds, and `serializeNimbusSessionCookie`
+ * faithfully clamps Max-Age to the token's own exp.
+ *
+ * That was invisible while the SSO gate was disabled. The moment the gate turns
+ * on it becomes a redirect loop: sign in, browse for a minute, get bounced to
+ * the dashboard, get a fresh 60s token, repeat. So this ships in the same image
+ * as the binding fix - never before it.
+ *
+ * The session carries the same identity claims and no new authority.
+ */
+export async function mintNimbusSessionToken(
+  payload: NimbusJwtPayload,
+  secret: string,
+  ttlSeconds = 60 * 60 * 24 * 7,
+): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const key = new TextEncoder().encode(secret);
+
+  return new SignJWT({
+    email: payload.email,
+    name: (payload as { name?: string }).name,
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(payload.sub ?? '')
+    .setAudience(NIMBUS_SESSION_AUD)
+    .setIssuedAt(now)
+    .setExpirationTime(now + ttlSeconds)
+    .sign(key);
 }

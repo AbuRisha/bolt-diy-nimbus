@@ -12,6 +12,8 @@ import {
   readNimbusSessionFromRequest,
   resolveNimbusEnv,
   serializeNimbusSessionCookie,
+  mintNimbusSessionToken,
+  type NimbusJwtPayload,
   verifyNimbusToken,
 } from '~/lib/.server/nimbus-sso';
 
@@ -67,12 +69,17 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
       url.searchParams.delete(NIMBUS_TOKEN_PARAM);
 
       const target = `${url.pathname}${url.search}${url.hash}` || '/';
-      const exp = typeof verified.payload.exp === 'number' ? verified.payload.exp : undefined;
-      const maxAgeSeconds = exp ? exp - Math.floor(Date.now() / 1000) : undefined;
+
+      // Do NOT store the bootstrap token as the session. It lives 60 seconds by
+      // design (it is a hand-off credential, short so a copied URL is dead on
+      // arrival), and serializeNimbusSessionCookie clamps Max-Age to the token's
+      // own exp - so the session would expire a minute after sign-in and bounce
+      // the user back to the dashboard, forever. Mint a real session instead.
+      const sessionToken = await mintNimbusSessionToken(verified.payload as NimbusJwtPayload, secret);
 
       return redirect(target, {
         headers: {
-          'Set-Cookie': serializeNimbusSessionCookie(bootstrapToken, env, { maxAgeSeconds }),
+          'Set-Cookie': serializeNimbusSessionCookie(sessionToken, env),
         },
       });
     }
