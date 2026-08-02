@@ -262,6 +262,10 @@ export async function mintNimbusSessionToken(
   return new SignJWT({
     email: payload.email,
     name: (payload as { name?: string }).name,
+    // Per-customer billing. Safe HERE and only here: the session token is an
+    // HttpOnly cookie, never a URL parameter, so unlike the bootstrap token it
+    // does not land in the address bar, history, or a Referer header.
+    nimbus_key: payload.nimbus_key,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(payload.sub ?? '')
@@ -269,4 +273,73 @@ export async function mintNimbusSessionToken(
     .setIssuedAt(now)
     .setExpirationTime(now + ttlSeconds)
     .sign(key);
+}
+
+
+/**
+ * Fetch the signed-in customer's OWN Nimbus API key from nimbusapi.net.
+ *
+ * Mirrors what Nimbus Chat does. The gateway already resolves an
+ * `sk-nim-live-` key to its customerId and balance and settles against it, so
+ * once Builder holds the customer's key their usage draws on their own credit
+ * and cannot touch anyone else's - no new billing code.
+ *
+ * Authenticated by an HMAC over the customer id, keyed with the SSO shared
+ * secret. Signing the id rather than sending a bare bearer matters: a leaked
+ * bearer alone would mint a key for ANY customer, whereas a captured signed
+ * request is only good for the customer it was already for.
+ *
+ * Called ONCE per session (at handoff, when the session token is minted), not
+ * per request. That distinction is load-bearing: minting per request is exactly
+ * what produced sixteen keys in a minute on the chat side.
+ *
+ * Returns undefined on every failure. Builder then falls back to the
+ * container-wide key, which is a billing-attribution problem rather than an
+ * outage - the wrong trade only if it happens silently, so it logs.
+ */
+export async function fetchCustomerApiKey(
+  sub: string | undefined,
+  env: NimbusEnv,
+): Promise<string | undefined> {
+  const secret = getNimbusSharedSecret(env);
+
+  if (!sub || !secret) {
+    return undefined;
+  }
+
+  const base = (getEnvVal(env, 'NIMBUS_DASHBOARD_URL') ?? 'https://nimbusapi.net')
+    .replace(/\/dashboard.*$/, '')
+    .replace(/\/$/, '');
+
+  try {
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+    const sigBuf = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(sub));
+    const sig = Array.from(new Uint8Array(sigBuf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    const resp = await fetch(`${base}/api/internal/chat-key`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-nimbus-chat-sig': sig },
+      body: JSON.stringify({ customerId: sub }),
+    });
+
+    if (!resp.ok) {
+      console.error(`[nimbus-sso] chat-key returned ${resp.status} for ${sub}; falling back to the shared key`);
+      return undefined;
+    }
+
+    const data = (await resp.json()) as { apiKey?: string };
+
+    return typeof data.apiKey === 'string' && data.apiKey.startsWith('sk-nim-') ? data.apiKey : undefined;
+  } catch (e) {
+    console.error('[nimbus-sso] chat-key request failed:', String(e));
+    return undefined;
+  }
 }

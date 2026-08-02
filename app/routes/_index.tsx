@@ -13,6 +13,7 @@ import {
   resolveNimbusEnv,
   serializeNimbusSessionCookie,
   mintNimbusSessionToken,
+  fetchCustomerApiKey,
   type NimbusJwtPayload,
   verifyNimbusToken,
 } from '~/lib/.server/nimbus-sso';
@@ -100,7 +101,17 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
       // arrival), and serializeNimbusSessionCookie clamps Max-Age to the token's
       // own exp - so the session would expire a minute after sign-in and bounce
       // the user back to the dashboard, forever. Mint a real session instead.
-      const sessionToken = await mintNimbusSessionToken(verified.payload as NimbusJwtPayload, secret);
+      // Resolve the customer's OWN api key once, at handoff, and carry it in
+      // the session cookie. Their usage then bills to their balance instead of
+      // the shared container key. Once per session, never per request.
+      const ownKey = await fetchCustomerApiKey(
+        typeof verified.payload.sub === 'string' ? verified.payload.sub : undefined,
+        env,
+      );
+      const sessionToken = await mintNimbusSessionToken(
+        { ...(verified.payload as NimbusJwtPayload), nimbus_key: ownKey },
+        secret,
+      );
 
       return redirect(target, {
         headers: {
