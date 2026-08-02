@@ -48,29 +48,27 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
 
   // TEMPORARY DIAGNOSTIC (2026-08-02). Remove once the SSO gate is confirmed on.
   //
-  // The gate reports enabled:false in production even though the shared secret
-  // is set on the container AND bindings.sh demonstrably emits it as a
-  // --binding. Ruled out by elimination: edge caching (direct-to-container is
-  // identical), a prerendered index.html (there is none in build/client),
-  // NIMBUS_SSO_DISABLED, and the container command. Reading the code cannot
-  // distinguish the two remaining possibilities - bindings never reach the
-  // loader, or they arrive under a shape this line does not read - so print the
-  // actual runtime shape once instead of inferring it again.
-  try {
-    const cf = (context as any)?.cloudflare;
-    console.log(
-      '[nimbus-sso-diag]',
-      JSON.stringify({
-        contextKeys: Object.keys((context as any) ?? {}),
-        hasCloudflare: Boolean(cf),
-        cloudflareKeys: cf ? Object.keys(cf) : null,
-        envKeys: cf?.env ? Object.keys(cf.env) : null,
-        secretResolved: Boolean(secret),
-      }),
-    );
-  } catch (e) {
-    console.log('[nimbus-sso-diag] failed:', String(e));
-  }
+  // The previous version console.log'd this and nothing appeared: wrangler
+  // buffers loader stdout under `pages dev`, and the az log stream kept dying
+  // on console encoding. So return it in the response instead - the one place
+  // guaranteed to reach us.
+  //
+  // This answers the last open question: are bindings reaching the loader at
+  // all, or arriving under a shape this code does not read? Everything else is
+  // already eliminated by test - edge caching (direct-to-container is
+  // identical), a prerendered index.html (none exists in build/client),
+  // NIMBUS_SSO_DISABLED, and the container command.
+  //
+  // Only KEY NAMES are exposed, never values.
+  const cfDiag = (context as any)?.cloudflare;
+  const nimbusDiag = {
+    contextKeys: Object.keys((context as any) ?? {}),
+    hasCloudflare: Boolean(cfDiag),
+    cloudflareKeys: cfDiag ? Object.keys(cfDiag) : null,
+    envKeyCount: cfDiag?.env ? Object.keys(cfDiag.env).length : null,
+    envKeys: cfDiag?.env ? Object.keys(cfDiag.env).slice(0, 40) : null,
+    secretResolved: Boolean(secret),
+  };
 
   // Escape hatch for local dev / CI. Also self-heals when the container was
   // deployed without a shared secret so the app doesn't hard-redirect-loop.
@@ -81,6 +79,7 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
         subject: null as string | null,
         email: null as string | null,
       },
+      nimbusDiag,
     });
   }
 
