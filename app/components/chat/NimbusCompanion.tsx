@@ -265,7 +265,7 @@ export default function NimbusCompanion({ state }: { state: CompanionState }) {
                    * it out of the paint entirely means a transparent sprite can
                    * never have anything behind it, regardless of load timing.
                    */
-                  className={`absolute inset-[8px_4px_5px] flex items-center justify-center rounded-[45%_45%_38%_38%] border border-cyan-200/30 bg-[radial-gradient(circle_at_50%_28%,rgba(224,247,255,.98),rgba(126,177,255,.94)_42%,rgba(37,75,168,.96)_76%,rgba(5,20,58,.98))] shadow-[0_8px_18px_rgba(34,211,238,.22),inset_0_0_18px_rgba(255,255,255,.26)] transition-opacity duration-200 ${companionAssetStatus === "ready" ? "hidden opacity-0" : "opacity-100"}`}
+                  className={`absolute inset-[8px_4px_5px] flex items-center justify-center rounded-[45%_45%_38%_38%] border border-cyan-200/30 bg-[radial-gradient(circle_at_50%_28%,rgba(224,247,255,.98),rgba(126,177,255,.94)_42%,rgba(37,75,168,.96)_76%,rgba(5,20,58,.98))] shadow-[0_8px_18px_rgba(34,211,238,.22),inset_0_0_18px_rgba(255,255,255,.26)] transition-opacity duration-200 ${companionAssetStatus === "ready" ? "opacity-0" : "opacity-100"}`}
                 >
                   <span className="absolute left-[15%] top-[5%] h-[40%] w-[70%] rounded-[48%] bg-white/25 blur-[1px]" />
                   <span className="relative flex h-[46%] w-[68%] items-center justify-center rounded-[42%] border-2 border-cyan-100/60 bg-[#13286f] shadow-[inset_0_0_12px_rgba(34,211,238,.5)]">
