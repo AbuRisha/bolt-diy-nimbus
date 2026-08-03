@@ -204,7 +204,7 @@ export const ModelSelector = ({
 
         return true;
       })
-      .map((model) => {
+      .map((model, catalogIndex) => {
         // Calculate search scores for fuzzy matching
         const labelMatch = fuzzyMatch(debouncedModelSearchQuery, model.label);
         const nameMatch = fuzzyMatch(debouncedModelSearchQuery, model.name);
@@ -215,6 +215,7 @@ export const ModelSelector = ({
 
         return {
           ...model,
+          catalogIndex,
           searchScore: bestScore,
           searchMatches: matches,
           highlightedLabel: highlightText(model.label, debouncedModelSearchQuery),
@@ -223,12 +224,27 @@ export const ModelSelector = ({
       })
       .filter((model) => model.searchMatches)
       .sort((a, b) => {
-        // Sort by search score (highest first), then by label
+        // Sort by search score (highest first) while the user is searching.
         if (debouncedModelSearchQuery) {
           return b.searchScore - a.searchScore;
         }
 
-        return a.label.localeCompare(b.label);
+        /*
+         * Otherwise keep the order the provider supplied.
+         *
+         * This used to be `a.label.localeCompare(b.label)`, which alphabetised
+         * the whole list and silently discarded whatever ordering a provider
+         * had established — Nimbus groups its catalog by vendor and sorts each
+         * group newest-first, and all of that was thrown away here, so the
+         * picker opened on "Claude Haiku 4.5" (oldest, but first alphabetically)
+         * and interleaved every vendor.
+         *
+         * Providers that supply no meaningful order are unaffected in practice:
+         * their dynamic model lists already arrive alphabetised from the
+         * upstream /models endpoint, so this preserves that instead of redoing
+         * it. A provider that wants alphabetical now says so by returning it.
+         */
+        return a.catalogIndex - b.catalogIndex;
       });
   }, [modelList, provider?.name, showFreeModelsOnly, debouncedModelSearchQuery]);
 

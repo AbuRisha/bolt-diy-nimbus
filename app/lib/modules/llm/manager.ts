@@ -230,7 +230,7 @@ export class LLMManager {
 
     // Combine static and dynamic models
     const modelList = [...dynamicModelsFlat, ...filteredStaticModels];
-    modelList.sort((a, b) => a.name.localeCompare(b.name));
+    this._sortModelList(modelList);
     this._modelList = modelList;
 
     return modelList;
@@ -288,9 +288,51 @@ export class LLMManager {
     const dynamicModelsName = dynamicModels.map((d) => d.name);
     const filteredStaticList = staticModels.filter((m) => !dynamicModelsName.includes(m.name));
     const modelList = [...dynamicModels, ...filteredStaticList];
-    modelList.sort((a, b) => a.name.localeCompare(b.name));
+    this._sortModelList(modelList);
 
     return modelList;
+  }
+
+  /**
+   * Order the combined model list, in place.
+   *
+   * Both call sites used to run a flat `a.name.localeCompare(b.name)`. That
+   * silently overrode any order a provider had established — and it ran AFTER
+   * the provider returned, so a provider could not fix it on its own side.
+   * Nimbus curates its catalog (grouped by vendor, newest-first per vendor)
+   * and every bit of that was discarded here, leaving a picker that opened on
+   * the alphabetically-first model and interleaved vendors.
+   *
+   * Now: group by provider, then order within the group. A provider that sets
+   * `preservesModelOrder` keeps the sequence it returned; everything else is
+   * alphabetised exactly as before, so no other provider's picker changes.
+   *
+   * Grouping by provider first is what keeps the comparator a total order — a
+   * comparator that mixed "by index" and "by name" across the same array would
+   * be inconsistent and could produce arbitrary output. It is also invisible
+   * in the UI: ModelSelector filters to one provider before rendering.
+   */
+  private _sortModelList(modelList: ModelInfo[]): void {
+    const preservesOrder = new Set(
+      Array.from(this._providers.values())
+        .filter((p) => p.preservesModelOrder)
+        .map((p) => p.name),
+    );
+
+    const position = new Map<ModelInfo, number>();
+    modelList.forEach((m, i) => position.set(m, i));
+
+    modelList.sort((a, b) => {
+      if (a.provider !== b.provider) {
+        return a.provider.localeCompare(b.provider);
+      }
+
+      if (preservesOrder.has(a.provider)) {
+        return (position.get(a) ?? 0) - (position.get(b) ?? 0);
+      }
+
+      return a.name.localeCompare(b.name);
+    });
   }
   getStaticModelListFromProvider(providerArg: BaseProvider) {
     const provider = this._providers.get(providerArg.name);

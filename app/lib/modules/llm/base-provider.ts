@@ -30,6 +30,13 @@ export abstract class BaseProvider implements ProviderInfo {
   isNimbus: boolean = false;
 
   /**
+   * Opt out of LLMManager's alphabetical sort and keep the order this
+   * provider returns models in. Defaults to `false`, which is the historical
+   * behaviour. See `ProviderInfo.preservesModelOrder`.
+   */
+  preservesModelOrder: boolean = false;
+
+  /**
    * Convert Cloudflare Env bindings to a plain Record<string, string>.
    * Useful because provider methods expect Record<string, string> but
    * Cloudflare Workers pass an Env interface.
