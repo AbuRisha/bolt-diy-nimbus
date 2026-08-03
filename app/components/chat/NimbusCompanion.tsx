@@ -242,7 +242,7 @@ export default function NimbusCompanion({ state }: { state: CompanionState }) {
                 aria-expanded={expanded}
                 aria-label={`${copy.label}. Draggable Nimbus companion. Drag to move, use arrow keys to reposition, click to play, or double click for status.`}
                 title="Drag Nimbus anywhere"
-                className="absolute inset-x-0 top-0 h-[104px] w-[82px] cursor-inherit origin-bottom focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
+                className="absolute inset-x-0 top-0 h-[104px] w-[82px] cursor-inherit origin-bottom bg-transparent p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
                 initial={false}
                 animate={reduceMotion ? { opacity: 1 } : state === "error"
                   ? { x: [0, -3, 3, -2, 2, 0], y: [0, -hop, 0], rotate: [0, -3, 3, -2, 2, 0], scaleX: [pose.facing, pose.facing * 0.96, pose.facing], scaleY: [1, 1.02, 0.96, 1] }
