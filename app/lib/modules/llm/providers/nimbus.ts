@@ -148,6 +148,47 @@ const CHAT_CATALOG: readonly CatalogEntry[] = [
   { id: 'z-ai/glm-5', label: 'GLM-5', context: 202752, released: null },
 ];
 
+/**
+ * Video roster, in display order: newest family first.
+ *
+ * Rebuilt from the gateway's live routing table on 2026-08-03. It was both
+ * wrong and incomplete — it offered kling-v3-t2v, Wan2.6-T2V and viduq3-pro,
+ * none of which exist in the routing table (upstream stopped serving them;
+ * the site catalog has flagged all three `unavailable` since 2026-07-26),
+ * while listing only 4 of the 18 video models that DO route. A customer could
+ * pick a model that always failed, and could not pick most of the ones that
+ * worked.
+ *
+ * Ids use the provider-prefixed spelling where the gateway publishes one.
+ * `sora-2` is published bare only — it is namespaced `azure/sora-2` upstream,
+ * and that prefix is provenance rather than a routing target, so the bare id
+ * is the customer-facing name.
+ *
+ * Ordering within Veo is by family (3.1 > 3 > 2) and then quality; `sora-2`
+ * sits between the Veo 3 and Veo 2 families by lineage, not by a sourced
+ * release date — unlike the chat catalog, no vendor date was checked here.
+ */
+const VIDEO_CATALOG: readonly { id: string; label: string }[] = [
+  { id: 'google/veo-3.1-1080p-audio', label: 'Veo 3.1 1080p (audio)' },
+  { id: 'google/veo-3.1-720p-audio', label: 'Veo 3.1 720p (audio)' },
+  { id: 'google/veo-3.1-1080p', label: 'Veo 3.1 1080p' },
+  { id: 'google/veo-3.1-720p', label: 'Veo 3.1 720p' },
+  { id: 'google/veo-3.1-fast-1080p-audio', label: 'Veo 3.1 Fast 1080p (audio)' },
+  { id: 'google/veo-3.1-fast-720p-audio', label: 'Veo 3.1 Fast 720p (audio)' },
+  { id: 'google/veo-3.1-fast-1080p', label: 'Veo 3.1 Fast 1080p' },
+  { id: 'google/veo-3.1-fast-720p', label: 'Veo 3.1 Fast 720p' },
+  { id: 'google/veo-3-1080p-audio', label: 'Veo 3 1080p (audio)' },
+  { id: 'google/veo-3-720p-audio', label: 'Veo 3 720p (audio)' },
+  { id: 'google/veo-3-1080p', label: 'Veo 3 1080p' },
+  { id: 'google/veo-3-720p', label: 'Veo 3 720p' },
+  { id: 'google/veo-3-fast-1080p-audio', label: 'Veo 3 Fast 1080p (audio)' },
+  { id: 'google/veo-3-fast-720p-audio', label: 'Veo 3 Fast 720p (audio)' },
+  { id: 'google/veo-3-fast-1080p', label: 'Veo 3 Fast 1080p' },
+  { id: 'google/veo-3-fast-720p', label: 'Veo 3 Fast 720p' },
+  { id: 'sora-2', label: 'Sora 2' },
+  { id: 'google/veo-2-720p', label: 'Veo 2 720p' },
+];
+
 /** Rank by canonical (bare) id, so both id spellings resolve to one position. */
 const DISPLAY_RANK = new Map<string, number>(
   CHAT_CATALOG.map((m, i) => [m.id.slice(m.id.lastIndexOf('/') + 1), i] as const),
@@ -208,42 +249,26 @@ export default class NimbusProvider extends BaseProvider {
    * caller POSTs a prompt and expects one or more image URLs back.
    */
   private imageModels: ModelInfo[] = [
+    /*
+     * Only what the gateway can actually route, checked against its live
+     * routing table on 2026-08-03.
+     *
+     * Eight entries were removed here: midjourney-fast-imagine,
+     * grok-imagine-image, grok-imagine-image-quality, wan2.7-image,
+     * Qwen-Image, and the three seedream ids. None of them exist in the
+     * routing table at all, so picking one returned model_not_found — the
+     * Image tab was offering eight models that could not work.
+     *
+     * They are not gone by accident: upstream stopped serving them, the site
+     * catalog has carried `unavailable: "upstream 404 model_not_found
+     * (verified 2026-07-26)"` on every one since, and the routing table was
+     * cleaned to match. This roster was simply never updated with it. Restore
+     * an entry only once the gateway lists it again.
+     */
     { name: 'openai/gpt-image-2', label: 'GPT Image 2', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
     {
       name: 'google/gemini-3.1-flash-image',
       label: 'Gemini 3.1 Flash Image',
-      provider: 'Nimbus',
-      maxTokenAllowed: 4096,
-      modality: 'image',
-    },
-    {
-      name: 'midjourney-fast-imagine',
-      label: 'Midjourney (fast /imagine)',
-      provider: 'Nimbus',
-      maxTokenAllowed: 4096,
-      modality: 'image',
-    },
-    { name: 'grok-imagine-image', label: 'Grok Imagine', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
-    {
-      name: 'grok-imagine-image-quality',
-      label: 'Grok Imagine (Quality)',
-      provider: 'Nimbus',
-      maxTokenAllowed: 4096,
-      modality: 'image',
-    },
-    { name: 'wan2.7-image', label: 'WAN 2.7 Image', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
-    { name: 'Qwen-Image', label: 'Qwen Image', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
-    { name: 'seedream-4.5', label: 'Seedream 4.5', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
-    {
-      name: 'seedream-5.0-lite',
-      label: 'Seedream 5.0 Lite',
-      provider: 'Nimbus',
-      maxTokenAllowed: 4096,
-      modality: 'image',
-    },
-    {
-      name: 'seedream-5.0-pro',
-      label: 'Seedream 5.0 Pro',
       provider: 'Nimbus',
       maxTokenAllowed: 4096,
       modality: 'image',
@@ -254,39 +279,13 @@ export default class NimbusProvider extends BaseProvider {
    * Video-generation catalog for the /video surface tab. ASYNC — the caller
    * submits a prompt, receives a job id, polls until the URL is ready.
    */
-  private videoModels: ModelInfo[] = [
-    {
-      name: 'google/veo-3.1-1080p-audio',
-      label: 'Veo 3.1 1080p (audio)',
-      provider: 'Nimbus',
-      maxTokenAllowed: 4096,
-      modality: 'video',
-    },
-    {
-      name: 'google/veo-3.1-720p-audio',
-      label: 'Veo 3.1 720p (audio)',
-      provider: 'Nimbus',
-      maxTokenAllowed: 4096,
-      modality: 'video',
-    },
-    {
-      name: 'google/veo-3.1-fast-720p-audio',
-      label: 'Veo 3.1 Fast 720p (audio)',
-      provider: 'Nimbus',
-      maxTokenAllowed: 4096,
-      modality: 'video',
-    },
-    {
-      name: 'google/veo-3-1080p-audio',
-      label: 'Veo 3 1080p (audio)',
-      provider: 'Nimbus',
-      maxTokenAllowed: 4096,
-      modality: 'video',
-    },
-    { name: 'kling-v3-t2v', label: 'Kling v3 T2V', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'video' },
-    { name: 'Wan2.6-T2V', label: 'WAN 2.6 T2V', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'video' },
-    { name: 'viduq3-pro', label: 'Vidu Q3 Pro', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'video' },
-  ];
+  private videoModels: ModelInfo[] = VIDEO_CATALOG.map((m) => ({
+    name: m.id,
+    label: m.label,
+    provider: 'Nimbus',
+    maxTokenAllowed: 4096,
+    modality: 'video' as const,
+  }));
 
   /**
    * `staticModels` is what LLMManager and the primary chat picker consume.
