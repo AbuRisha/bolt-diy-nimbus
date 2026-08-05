@@ -297,6 +297,101 @@ export async function mintNimbusSessionToken(
  * container-wide key, which is a billing-attribution problem rather than an
  * outage - the wrong trade only if it happens silently, so it logs.
  */
+/** Account summary as Builder sees it: identity, balance, and BUILDER spend. */
+export type NimbusAccountSummary = {
+  configured: boolean;
+  email?: string;
+  balanceUsd?: number;
+  builder: {
+    hasKey: boolean;
+    spendCapUsd: number | null;
+    spentUsd: number;
+    requestCount: number;
+  };
+};
+
+async function signCustomerId(sub: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sigBuf = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(sub));
+
+  return Array.from(new Uint8Array(sigBuf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Balance and Builder-scoped spend.
+ *
+ * Spend is scoped to the Builder key rather than the account so it answers "is
+ * Builder billing me correctly" — it moves by the cost of a Builder request and
+ * by nothing else. An account-wide total would mix in chat and direct API
+ * traffic and answer nothing.
+ *
+ * `configured: false` is a DISTINCT state from a zero balance: it means the
+ * secret is missing or nimbusapi.net could not be reached. Rendering that as
+ * $0.00 would tell someone with money that they have none.
+ */
+export async function fetchNimbusAccount(
+  sub: string | undefined,
+  env: NimbusEnv,
+): Promise<NimbusAccountSummary> {
+  const empty: NimbusAccountSummary = {
+    configured: false,
+    builder: { hasKey: false, spendCapUsd: null, spentUsd: 0, requestCount: 0 },
+  };
+  const secret = getNimbusSharedSecret(env);
+
+  if (!sub || !secret) {
+    return empty;
+  }
+
+  const base = (getEnvVal(env, 'NIMBUS_DASHBOARD_URL') ?? 'https://nimbusapi.net')
+    .replace(/\/dashboard.*$/, '')
+    .replace(/\/$/, '');
+
+  try {
+    const sig = await signCustomerId(sub, secret);
+    const resp = await fetch(`${base}/api/internal/chat-account`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-nimbus-chat-sig': sig },
+      body: JSON.stringify({ customerId: sub, product: 'builder' }),
+    });
+
+    if (!resp.ok) {
+      console.error(`[nimbus-sso] chat-account returned ${resp.status} for ${sub}`);
+      return empty;
+    }
+
+    const data = (await resp.json()) as {
+      email?: string;
+      balanceUsd?: number;
+      chat?: { hasKey?: boolean; spendCapUsd?: number | null; spentUsd?: number; requestCount?: number };
+    };
+    const scoped = data.chat ?? {};
+
+    return {
+      configured: true,
+      email: data.email,
+      balanceUsd: Number(data.balanceUsd ?? 0),
+      builder: {
+        hasKey: Boolean(scoped.hasKey),
+        spendCapUsd: scoped.spendCapUsd == null ? null : Number(scoped.spendCapUsd),
+        spentUsd: Number(scoped.spentUsd ?? 0),
+        requestCount: Number(scoped.requestCount ?? 0),
+      },
+    };
+  } catch (e) {
+    console.error('[nimbus-sso] chat-account request failed:', String(e));
+    return empty;
+  }
+}
+
 export async function fetchCustomerApiKey(
   sub: string | undefined,
   env: NimbusEnv,
@@ -327,7 +422,14 @@ export async function fetchCustomerApiKey(
     const resp = await fetch(`${base}/api/internal/chat-key`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-nimbus-chat-sig': sig },
-      body: JSON.stringify({ customerId: sub }),
+      /*
+       * `product: 'builder'` is what stops Builder and chat fighting over one
+       * key. Without it both mint under the same name, so every Builder login
+       * revoked the key chat was holding and every chat load revoked Builder's
+       * — each product quietly signing the other out. It also makes spend
+       * attributable: UsageEvent.apiKeyId then says which product spent what.
+       */
+      body: JSON.stringify({ customerId: sub, product: 'builder' }),
     });
 
     if (!resp.ok) {

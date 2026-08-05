@@ -1,4 +1,5 @@
 import { useStore } from '@nanostores/react';
+import { NimbusAccountBadge } from './NimbusAccountBadge';
 import { ClientOnly } from 'remix-utils/client-only';
 import { chatStore } from '~/lib/stores/chat';
 import { classNames } from '~/utils/classNames';
@@ -93,6 +94,9 @@ export function Header() {
           </a>
         ))}
       </nav>
+      {/* Balance and Builder spend. Renders nothing when the account cannot be
+          read, so a Nimbus outage never breaks the header. */}
+      <NimbusAccountBadge />
       {chat.started && ( // Display ChatDescription and HeaderActionButtons only when the chat has started.
         <>
           <span className="flex-1 px-4 truncate text-center text-bolt-elements-textPrimary">

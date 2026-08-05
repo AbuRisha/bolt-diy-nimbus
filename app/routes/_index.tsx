@@ -14,6 +14,7 @@ import {
   serializeNimbusSessionCookie,
   mintNimbusSessionToken,
   fetchCustomerApiKey,
+  fetchNimbusAccount,
   type NimbusJwtPayload,
   verifyNimbusToken,
 } from '~/lib/.server/nimbus-sso';
@@ -128,12 +129,24 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
   const session = await readNimbusSessionFromRequest(request, env);
 
   if (session) {
+    /*
+     * Balance and Builder-scoped spend, so the UI can show what the customer is
+     * signed in as and what Builder has cost them. Never throws — fetchNimbusAccount
+     * returns `configured: false` on any failure, which the UI renders as
+     * "unavailable" rather than as a zero balance.
+     */
+    const account = await fetchNimbusAccount(
+      (session.payload.sub as string | undefined) ?? undefined,
+      env,
+    );
+
     return json({
       nimbusSso: {
         enabled: true,
         subject: (session.payload.sub as string | undefined) ?? null,
         email: (session.payload.email as string | undefined) ?? null,
       },
+      nimbusAccount: account,
     });
   }
 
