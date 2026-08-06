@@ -1,4 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Rate limiting store (in-memory for serverless environments)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -182,6 +183,30 @@ export function withSecurity<T extends (args: ActionFunctionArgs | LoaderFunctio
     const { request } = args;
     const url = new URL(request.url);
     const endpoint = url.pathname;
+
+    /*
+     * Auth first, before the method and rate-limit checks.
+     *
+     * `requireAuth` was declared in the options type and never read: only
+     * `allowedMethods` and `rateLimit` were enforced, so a route wrapped in
+     * this helper was unauthenticated no matter what its author asked for -
+     * and looked protected in review, which is the worse half of the bug.
+     *
+     * Running it first also stops an anonymous caller using 405 or 429 as an
+     * oracle: without this ordering they could still learn which methods a
+     * route accepts and how its rate limit behaves before being denied.
+     *
+     * No route passes `requireAuth: true` today, so enforcing it changes no
+     * current behaviour - it just means the next one that asks for auth
+     * actually gets it.
+     */
+    if (options.requireAuth) {
+      const denied = await requireBuilderAuth(request, (args as { context?: unknown }).context);
+
+      if (denied) {
+        return denied;
+      }
+    }
 
     // Check allowed methods
     if (options.allowedMethods && !options.allowedMethods.includes(request.method)) {

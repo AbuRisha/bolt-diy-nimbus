@@ -343,3 +343,63 @@ export async function fetchCustomerApiKey(
     return undefined;
   }
 }
+
+/**
+ * Require a valid Nimbus builder session, or return a 401 Response.
+ *
+ * Returns `null` when the caller may proceed, and a ready-to-return `Response`
+ * when they may not — so a route guard reads:
+ *
+ *     const denied = await requireBuilderAuth(request, context);
+ *     if (denied) return denied;
+ *
+ * ── Why this exists ────────────────────────────────────────────────────────
+ * SSO was enforced in `_index.tsx`'s loader only, i.e. on the PAGE. Of the 35
+ * API routes, exactly one imported this module, so `POST /api/chat` and
+ * friends were reachable by anyone who skipped the page and called the route
+ * directly. Verified against production on 2026-08-06: an anonymous
+ * `POST /api/chat` returned 200 and streamed a progress event before failing
+ * on a missing key.
+ *
+ * It failed only because this container holds no provider credentials — the
+ * customer's key arrives in the session as `nimbus_key`, resolved once at SSO
+ * handoff. So the gap was not costing money on this deployment; it would start
+ * the moment anyone set NIMBUS_API_KEY or a provider key on the container,
+ * which is the obvious thing to do to make the Builder run standalone. Gating
+ * it now means that change stays a config change instead of becoming an
+ * unmetered inference endpoint.
+ *
+ * ── The dev hatch is preserved deliberately ────────────────────────────────
+ * `isNimbusSsoDisabled(env) || !secret` short-circuits, exactly as the page
+ * loader does. Local `pnpm dev` and CI run without a dashboard, and a
+ * container deployed without a shared secret must not hard-fail every route —
+ * it would take the Builder down rather than protect it. Production sets
+ * NIMBUS_SSO_SHARED_SECRET (verified present as secretRef `nimbus-sso-secret`)
+ * and does not set NIMBUS_SSO_DISABLED, so the hatch is closed there.
+ */
+export async function requireBuilderAuth(request: Request, context?: unknown): Promise<Response | null> {
+  const env = resolveNimbusEnv((context as any)?.cloudflare?.env);
+
+  // Same escape hatch as the page loader. Without this, local dev and any
+  // secretless deploy would 401 every route.
+  if (isNimbusSsoDisabled(env) || !getNimbusSharedSecret(env)) {
+    return null;
+  }
+
+  const session = await readNimbusSessionFromRequest(request, env);
+
+  if (session) {
+    return null;
+  }
+
+  return new Response(JSON.stringify({ error: 'unauthorized', message: 'Nimbus builder session required.' }), {
+    status: 401,
+    headers: {
+      'Content-Type': 'application/json',
+      // A denial must never be cached by an intermediary and then served to
+      // an authenticated caller, nor the reverse.
+      'Cache-Control': 'no-store',
+      'WWW-Authenticate': 'Cookie realm="nimbus-builder"',
+    },
+  });
+}

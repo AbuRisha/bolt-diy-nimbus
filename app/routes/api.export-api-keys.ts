@@ -1,8 +1,16 @@
 import type { LoaderFunction } from '@remix-run/cloudflare';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export const loader: LoaderFunction = async ({ context, request }) => {
+  // Route-level auth. SSO used to live only in the page loader, so calling
+  // this route directly skipped it entirely. See requireBuilderAuth.
+  const denied = await requireBuilderAuth(request, context);
+
+  if (denied) {
+    return denied;
+  }
   // Get API keys from cookie
   const cookieHeader = request.headers.get('Cookie');
   const apiKeysFromCookie = getApiKeysFromCookie(cookieHeader);

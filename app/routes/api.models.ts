@@ -3,6 +3,7 @@ import { LLMManager } from '~/lib/modules/llm/manager';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import type { ProviderInfo } from '~/types/model';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 interface ModelsResponse {
   modelList: ModelInfo[];
@@ -51,6 +52,26 @@ export async function loader({
     };
   };
 }): Promise<Response> {
+  /*
+   * Auth gate. Verified against production on 2026-08-06: an anonymous GET
+   * returned 85KB listing 23 providers and 457 models, 22 of them upstream
+   * vendors (Bedrock, OpenAI, Groq, Together, ...). NIMBUS_ONLY was applied in
+   * the UI only, so the roster we resell was readable by anyone calling the
+   * route directly.
+   *
+   * Gating rather than filtering the payload, deliberately: the authenticated
+   * response is unchanged, so the "Advanced - bring your own key" panel keeps
+   * working exactly as it does now. Making NIMBUS_ONLY a real server-side
+   * boundary (returning only getPrimaryProviders()) is the better end state,
+   * but it changes what real users receive and deserves its own change and
+   * its own testing rather than riding along with a security patch.
+   */
+  const denied = await requireBuilderAuth(request, context);
+
+  if (denied) {
+    return denied;
+  }
+
   const llmManager = LLMManager.getInstance(context.cloudflare?.env);
 
   // Get client side maintained API keys and provider settings from cookies

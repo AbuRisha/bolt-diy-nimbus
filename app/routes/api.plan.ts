@@ -2,6 +2,7 @@ import { type ActionFunctionArgs, json } from '@remix-run/cloudflare';
 import { classifyAndQuestion } from '~/lib/agent/clarify';
 import { researchReference, type ReferenceDigest } from '~/lib/agent/research';
 import { createScopedLogger } from '~/utils/logger';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 const logger = createScopedLogger('api.plan');
 
@@ -15,6 +16,13 @@ const logger = createScopedLogger('api.plan');
  * If mode === 'questions', render chip UI, collect answers, then call /api/chat.
  */
 export async function action({ context, request }: ActionFunctionArgs) {
+  // Route-level auth. SSO used to live only in the page loader, so calling
+  // this route directly skipped it entirely. See requireBuilderAuth.
+  const denied = await requireBuilderAuth(request, context);
+
+  if (denied) {
+    return denied;
+  }
   if (request.method !== 'POST') {
     return json({ error: 'method_not_allowed' }, { status: 405 });
   }

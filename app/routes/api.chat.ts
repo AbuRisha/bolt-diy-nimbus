@@ -15,8 +15,16 @@ import type { DesignScheme } from '~/types/design-scheme';
 import { MCPService } from '~/lib/services/mcpService';
 import { StreamRecoveryManager } from '~/lib/.server/llm/stream-recovery';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export async function action(args: ActionFunctionArgs) {
+  // Route-level auth. SSO used to live only in the page loader, so calling
+  // this route directly skipped it entirely. See requireBuilderAuth.
+  const denied = await requireBuilderAuth(args.request, args.context);
+
+  if (denied) {
+    return denied;
+  }
   return chatAction(args);
 }
 
