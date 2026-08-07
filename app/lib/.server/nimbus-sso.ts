@@ -380,10 +380,46 @@ export async function fetchCustomerApiKey(
 export async function requireBuilderAuth(request: Request, context?: unknown): Promise<Response | null> {
   const env = resolveNimbusEnv((context as any)?.cloudflare?.env);
 
-  // Same escape hatch as the page loader. Without this, local dev and any
-  // secretless deploy would 401 every route.
-  if (isNimbusSsoDisabled(env) || !getNimbusSharedSecret(env)) {
+  // Explicit opt-out, for local `pnpm dev` and CI only.
+  if (isNimbusSsoDisabled(env)) {
     return null;
+  }
+
+  /*
+   * Missing secret: fail CLOSED in production, open everywhere else.
+   *
+   * The first version of this failed open unconditionally, reasoning that a
+   * secretless container should degrade rather than 401 every route. PR #11
+   * (codex/builder-sso-fail-closed) argued the opposite and is right: on an
+   * AUTH control, "I could not verify" must not resolve to "allowed". Failing
+   * open is also silent — nobody would notice the Builder had become
+   * unauthenticated, which is the property that makes it dangerous.
+   *
+   * The availability worry behind the original choice was real though, so it
+   * is answered rather than dismissed: dev and CI keep the permissive path, so
+   * nothing local breaks, and production is the only place that hard-denies.
+   * Production genuinely has the secret (secretRef `nimbus-sso-secret`,
+   * verified 2026-08-06), so this changes nothing today — it only decides
+   * which way the failure goes on the day the mount breaks.
+   */
+  if (!getNimbusSharedSecret(env)) {
+    const isProduction = getEnvVal(env, 'NODE_ENV') === 'production';
+
+    if (!isProduction) {
+      return null;
+    }
+
+    return new Response(
+      JSON.stringify({ error: 'unauthorized', message: 'Builder SSO is not configured.' }),
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'WWW-Authenticate': 'Cookie realm="nimbus-builder"',
+        },
+      },
+    );
   }
 
   const session = await readNimbusSessionFromRequest(request, env);

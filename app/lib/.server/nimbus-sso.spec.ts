@@ -141,17 +141,37 @@ describe('requireBuilderAuth', () => {
     expect(denied).toBeNull();
   });
 
-  it('allows everything when no shared secret is configured', async () => {
+  it('allows a missing secret OUTSIDE production, so dev and CI still run', async () => {
+    const denied = await requireBuilderAuth(requestWithCookie(), ctx({ NODE_ENV: 'development' }));
+
+    expect(denied).toBeNull();
+  });
+
+  it('DENIES a missing secret in production', async () => {
     /*
-     * Deliberate. A container deployed without the secret must degrade to the
-     * previous behaviour rather than 401 every route — failing closed here
-     * would take the whole Builder down instead of protecting it, and the
-     * page loader already makes exactly this trade.
+     * This assertion is the reverse of what it said an hour earlier. The first
+     * version failed open on a missing secret, reasoning that a secretless
+     * container should degrade rather than 401 everything. PR #11 argued the
+     * opposite and is right: on an auth control, "could not verify" must not
+     * mean "allowed", and failing open is silent — nobody would notice the
+     * Builder had gone unauthenticated.
      *
-     * Production sets NIMBUS_SSO_SHARED_SECRET (secretRef `nimbus-sso-secret`)
-     * and does not set NIMBUS_SSO_DISABLED, so neither hatch is open there.
+     * Production has the secret today, so this only decides which way the
+     * failure goes when the mount breaks.
      */
-    const denied = await requireBuilderAuth(requestWithCookie(), ctx({}));
+    const denied = await requireBuilderAuth(requestWithCookie(), ctx({ NODE_ENV: 'production' }));
+
+    expect(denied).not.toBeNull();
+    expect(denied!.status).toBe(401);
+  });
+
+  it('still honours the explicit disable flag even in production', async () => {
+    // NIMBUS_SSO_DISABLED is a deliberate operator action, unlike an absent
+    // secret which is usually an accident.
+    const denied = await requireBuilderAuth(
+      requestWithCookie(),
+      ctx({ NODE_ENV: 'production', NIMBUS_SSO_DISABLED: 'true' }),
+    );
 
     expect(denied).toBeNull();
   });
