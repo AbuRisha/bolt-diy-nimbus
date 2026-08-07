@@ -1,6 +1,7 @@
 import { json } from '@remix-run/cloudflare';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
+import { isAllowedUrl, safeFetch } from '~/utils/url';
 
 // Allowed headers to forward to the target server
 const ALLOW_HEADERS = [
@@ -96,6 +97,20 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
     const url = new URL(request.url);
     const targetURL = `https://${domain}/${remainingPath}${url.search}`;
 
+    /*
+     * The domain comes straight out of the request path and was fetched
+     * unvalidated, which is a proxy pointed at whatever the caller names —
+     * `/api/git-proxy/<internal-host>/...` included. Gating this route behind
+     * a session (done earlier in this branch) limits who can ask; it does not
+     * make the target safe.
+     *
+     * The `https://` prefix is not a control either: it rules out Azure IMDS,
+     * which is HTTP-only, but leaves every internal HTTPS service reachable.
+     */
+    if (!isAllowedUrl(targetURL)) {
+      return json({ error: 'Blocked target' }, { status: 400 });
+    }
+
     console.log('Target URL:', targetURL);
 
     // Filter and prepare headers
@@ -137,7 +152,8 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
     }
 
     // Forward the request to the target URL
-    const response = await fetch(targetURL, fetchOptions);
+    // safeFetch: a git host answering 302 toward internal space must not be followed blindly.
+    const response = await safeFetch(targetURL, fetchOptions);
 
     console.log('Response status:', response.status);
 
