@@ -1,8 +1,16 @@
 import { json } from '@remix-run/cloudflare';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
-export async function loader() {
+export async function loader(args: { request: Request; context?: unknown }) {
+  // Route-level auth. See requireBuilderAuth in lib/.server/nimbus-sso.
+  const denied = await requireBuilderAuth(args.request, args.context);
+
+  if (denied) {
+    return denied;
+  }
+
   try {
     // Check if we're in a git repository
     if (!existsSync('.git')) {

@@ -1,5 +1,6 @@
 import { json } from '@remix-run/cloudflare';
 import JSZip from 'jszip';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Function to detect if we're running in Cloudflare
 function isCloudflareEnvironment(context: any): boolean {
@@ -202,6 +203,16 @@ async function fetchRepoContentsZip(repo: string, githubToken?: string) {
 }
 
 export async function loader({ request, context }: { request: Request; context: any }) {
+  // Route-level auth — SSO lived in the page loader only, so calling this
+  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  {
+    const denied = await requireBuilderAuth(request, context);
+
+    if (denied) {
+      return denied;
+    }
+  }
+
   const url = new URL(request.url);
   const repo = url.searchParams.get('repo');
 

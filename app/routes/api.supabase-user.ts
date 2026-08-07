@@ -77,6 +77,7 @@ async function supabaseUserLoader({ request, context }: { request: Request; cont
 }
 
 export const loader = withSecurity(supabaseUserLoader, {
+  requireAuth: true,
   rateLimit: true,
   allowedMethods: ['GET'],
 });

@@ -7,6 +7,7 @@ import {
   resolveNimbusEnv,
 } from '~/lib/.server/nimbus-sso';
 import { createScopedLogger } from '~/utils/logger';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 const logger = createScopedLogger('api.nimbus-proxy');
 
@@ -153,6 +154,16 @@ function json(body: unknown, status: number, extraHeaders: Record<string, string
 }
 
 export async function loader(args: LoaderFunctionArgs) {
+  // Route-level auth — SSO lived in the page loader only, so calling this
+  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  {
+    const denied = await requireBuilderAuth(args.request, args.context);
+
+    if (denied) {
+      return denied;
+    }
+  }
+
   return handleProxy(args);
 }
 

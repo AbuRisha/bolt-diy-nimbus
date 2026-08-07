@@ -62,6 +62,7 @@ async function netlifyUserLoader({ request, context }: { request: Request; conte
 }
 
 export const loader = withSecurity(netlifyUserLoader, {
+  requireAuth: true,
   rateLimit: true,
   allowedMethods: ['GET'],
 });

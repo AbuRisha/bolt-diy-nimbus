@@ -1,4 +1,5 @@
 import { json, type LoaderFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 interface GitInfo {
   local: {
@@ -62,6 +63,16 @@ declare const __GIT_REPO_NAME: string;
  */
 
 export const loader: LoaderFunction = async ({ request, context }: LoaderFunctionArgs & { context: AppContext }) => {
+  // Route-level auth — SSO lived in the page loader only, so calling this
+  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  {
+    const denied = await requireBuilderAuth(request, context);
+
+    if (denied) {
+      return denied;
+    }
+  }
+
   console.log('Git info API called with URL:', request.url);
 
   // Handle CORS preflight requests

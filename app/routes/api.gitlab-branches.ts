@@ -140,4 +140,4 @@ async function gitlabBranchesLoader({ request }: { request: Request }) {
   }
 }
 
-export const action = withSecurity(gitlabBranchesLoader);
+export const action = withSecurity(gitlabBranchesLoader, { requireAuth: true });

@@ -1,5 +1,6 @@
 import { json } from '@remix-run/cloudflare';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Allowed headers to forward to the target server
 const ALLOW_HEADERS = [
@@ -44,6 +45,16 @@ const EXPOSE_HEADERS = [
 
 // Handle all HTTP methods
 export async function action({ request, params }: ActionFunctionArgs) {
+  // Route-level auth — SSO lived in the page loader only, so calling this
+  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  {
+    const denied = await requireBuilderAuth(request, undefined);
+
+    if (denied) {
+      return denied;
+    }
+  }
+
   return handleProxyRequest(request, params['*']);
 }
 

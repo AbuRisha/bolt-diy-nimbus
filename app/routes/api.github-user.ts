@@ -66,6 +66,7 @@ async function githubUserLoader({ request, context }: { request: Request; contex
 }
 
 export const loader = withSecurity(githubUserLoader, {
+  requireAuth: true,
   rateLimit: true,
   allowedMethods: ['GET'],
 });

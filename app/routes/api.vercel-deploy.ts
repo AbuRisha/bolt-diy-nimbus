@@ -1,5 +1,6 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, json } from '@remix-run/cloudflare';
 import type { VercelProjectInfo } from '~/types/vercel';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Function to detect framework from project files
 const detectFramework = (files: Record<string, string>): string => {
@@ -174,6 +175,16 @@ const detectFramework = (files: Record<string, string>): string => {
 
 // Add loader function to handle GET requests
 export async function loader({ request }: LoaderFunctionArgs) {
+  // Route-level auth — SSO lived in the page loader only, so calling this
+  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  {
+    const denied = await requireBuilderAuth(request, undefined);
+
+    if (denied) {
+      return denied;
+    }
+  }
+
   const url = new URL(request.url);
   const projectId = url.searchParams.get('projectId');
   const token = url.searchParams.get('token');

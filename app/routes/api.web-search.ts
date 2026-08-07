@@ -1,6 +1,7 @@
 import { json } from '@remix-run/cloudflare';
 import type { ActionFunctionArgs } from '@remix-run/cloudflare';
-import { isAllowedUrl } from '~/utils/url';
+import { isAllowedUrl, safeFetch } from '~/utils/url';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 const MAX_CONTENT_LENGTH = 8000;
 
@@ -48,6 +49,16 @@ function extractTextContent(html: string): string {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
+  // Route-level auth — SSO lived in the page loader only, so calling this
+  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  {
+    const denied = await requireBuilderAuth(request, undefined);
+
+    if (denied) {
+      return denied;
+    }
+  }
+
   if (request.method !== 'POST') {
     return json({ error: 'Method not allowed' }, { status: 405 });
   }
@@ -63,7 +74,14 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ error: 'URL is not allowed. Only public HTTP/HTTPS URLs are accepted.' }, { status: 400 });
     }
 
-    const response = await fetch(url, {
+    /*
+     * safeFetch, not fetch. `isAllowedUrl` above only vets the URL the caller
+     * typed; plain `fetch` then follows redirects on its own, so a public host
+     * answering 302 with Location: http://169.254.169.254/ reached internal
+     * space without the guard running again. safeFetch drives each hop with
+     * redirect: 'manual' and re-validates before connecting.
+     */
+    const response = await safeFetch(url, {
       headers: FETCH_HEADERS,
       signal: AbortSignal.timeout(10_000),
     });

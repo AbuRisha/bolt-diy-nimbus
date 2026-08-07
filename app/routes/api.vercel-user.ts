@@ -73,6 +73,7 @@ async function vercelUserLoader({ request, context }: { request: Request; contex
 }
 
 export const loader = withSecurity(vercelUserLoader, {
+  requireAuth: true,
   rateLimit: true,
   allowedMethods: ['GET'],
 });
