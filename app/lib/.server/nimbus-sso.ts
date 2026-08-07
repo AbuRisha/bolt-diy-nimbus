@@ -207,9 +207,28 @@ export function buildNimbusDashboardRedirect(env: NimbusEnv, nextSlug = 'builder
 }
 
 /**
- * Resolve the upstream API key. Prefers a per-user key embedded in the JWT (so
- * per-user usage/quotas stay accurate) and falls back to the container-wide
- * NIMBUS_API_KEY that ships with every deployment.
+ * Resolve the upstream API key for a customer request.
+ *
+ * The per-user key is embedded in the session JWT at SSO handoff, so usage
+ * bills to the customer who made the request.
+ *
+ * ── Why there is no fallback to NIMBUS_API_KEY in production ────────────────
+ * This used to end `return getEnvVal(env, 'NIMBUS_API_KEY')`, so any signed-in
+ * customer whose session carried no `nimbus_key` — a handoff where
+ * `fetchCustomerApiKey` failed, or a session minted before that field existed
+ * — silently spent the OPERATOR's key. Their inference billed to us, not them,
+ * with nothing in the request to show it.
+ *
+ * That is inert today only because the container has no NIMBUS_API_KEY set. It
+ * would go live the moment someone set one, which is the obvious thing to do
+ * to "make Builder work standalone" — `worker-configuration.d.ts` declares the
+ * variable and `bindings.sh` forwards it, so it is one `az containerapp
+ * update` away. Removing the fallback now costs nothing (the path already
+ * returns undefined in production) and means that change stays a config change
+ * instead of an unmetered billing leak.
+ *
+ * The dev hatch is kept: with NIMBUS_SSO_DISABLED there are no sessions at all,
+ * so a container key is the only way to run Builder locally.
  */
 export function getNimbusApiKey(env: NimbusEnv, session?: NimbusSession | null): string | undefined {
   const embedded = session?.payload?.nimbus_key;
@@ -218,7 +237,11 @@ export function getNimbusApiKey(env: NimbusEnv, session?: NimbusSession | null):
     return embedded;
   }
 
-  return getEnvVal(env, 'NIMBUS_API_KEY');
+  if (isNimbusSsoDisabled(env)) {
+    return getEnvVal(env, 'NIMBUS_API_KEY');
+  }
+
+  return undefined;
 }
 
 /** Upstream Nimbus OpenAI-compatible base URL (no trailing slash). */

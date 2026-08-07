@@ -16,6 +16,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  getNimbusApiKey,
   mintNimbusSessionToken,
   NIMBUS_COOKIE_NAME,
   requireBuilderAuth,
@@ -174,5 +175,34 @@ describe('requireBuilderAuth', () => {
     );
 
     expect(denied).toBeNull();
+  });
+});
+
+describe('getNimbusApiKey — whose balance pays', () => {
+  const sessionWith = (nimbus_key?: string) =>
+    ({ token: 't', payload: { sub: 'cus_1', ...(nimbus_key ? { nimbus_key } : {}) } }) as never;
+
+  it("uses the customer's own key when the session carries one", () => {
+    expect(getNimbusApiKey({ NIMBUS_API_KEY: 'sk-operator' }, sessionWith('sk-nim-live-customer'))).toBe(
+      'sk-nim-live-customer',
+    );
+  });
+
+  it('refuses to fall back to the operator key for a signed-in customer', () => {
+    /*
+     * The load-bearing assertion. This used to return 'sk-operator', so any
+     * customer whose session lacked a per-user key billed their inference to
+     * us with nothing in the request to show it. Inert today only because the
+     * container has no NIMBUS_API_KEY — which is one config change away from
+     * being set.
+     */
+    expect(getNimbusApiKey({ NIMBUS_API_KEY: 'sk-operator' }, sessionWith())).toBeUndefined();
+    expect(getNimbusApiKey({ NIMBUS_API_KEY: 'sk-operator' }, null)).toBeUndefined();
+  });
+
+  it('still allows the container key when SSO is disabled (local dev)', () => {
+    // With SSO off there are no sessions at all, so a container key is the
+    // only way to run Builder locally.
+    expect(getNimbusApiKey({ NIMBUS_API_KEY: 'sk-operator', NIMBUS_SSO_DISABLED: 'true' }, null)).toBe('sk-operator');
   });
 });

@@ -77,8 +77,24 @@ async function handleProxy({ request, context, params }: ProxyArgs): Promise<Res
   const apiKey = getNimbusApiKey(env, session);
 
   if (!apiKey) {
-    logger.error('Missing NIMBUS_API_KEY (and no per-session key on JWT).');
-    return json({ error: 'nimbus_api_key_unavailable' }, 500);
+    /*
+     * The session carries no per-customer key. This is not a server fault and
+     * must not be answered with one: billing this request to the container key
+     * would charge the operator for a customer's inference, which is exactly
+     * the fallback removed from getNimbusApiKey.
+     *
+     * The fix is a fresh handoff — the dashboard resolves the customer's own
+     * key and embeds it when it mints the session — so say that.
+     */
+    logger.error('No per-customer key on the session; refusing to bill the operator key.');
+
+    return json(
+      {
+        error: 'nimbus_customer_key_required',
+        message: 'Your session has no Nimbus API key attached. Sign in again from the dashboard to refresh it.',
+      },
+      401,
+    );
   }
 
   const upstreamBase = getNimbusUpstreamBase(env);
