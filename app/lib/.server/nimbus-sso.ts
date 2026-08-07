@@ -26,7 +26,30 @@ export const NIMBUS_COOKIE_NAME = 'nimbus_session';
 export const NIMBUS_TOKEN_PARAM = 'nimbus_token';
 export const NIMBUS_DASHBOARD_DEFAULT = 'https://nimbusapi.net/dashboard';
 
-const NIMBUS_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // one week
+/*
+ * Eight hours, not a week.
+ *
+ * This cookie is the whole authentication story for Builder — anyone holding
+ * it is the customer, and (since the billing fix) spends that customer's
+ * balance. A week-long window on a bearer credential is far more than the
+ * product needs.
+ *
+ * Shortening it is close to free here because re-auth is invisible: an expired
+ * Builder session redirects to the dashboard, whose own session lasts 30 days
+ * (nimbus-v2 lib/session.ts SESSION_TTL_SECONDS), so it mints a fresh
+ * bootstrap token and bounces the user straight back without a login prompt.
+ * The cost is one redirect per working day; the gain is a 21x smaller window
+ * on a stolen cookie.
+ *
+ * Deliberately NOT adopting the `__Host-` prefix that PR #11 proposes with
+ * this change. `__Host-` forbids a Domain attribute, and this cookie is
+ * intentionally scoped to `.nimbusapi.net` so Builder can honour a session
+ * minted by the dashboard — nimbus-v2 sets `nimbus_session` in its Google and
+ * Discord OAuth callbacks, and _index.tsx step 2 accepts "either ours or the
+ * dashboard's". Adding the prefix would break that path and invalidate every
+ * live session at once.
+ */
+const NIMBUS_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 8; // eight hours
 const NIMBUS_COOKIE_MIN_AGE_SECONDS = 60; // never issue a sub-minute cookie
 
 export type NimbusEnv = Record<string, string | undefined>;
@@ -277,7 +300,7 @@ export const NIMBUS_SESSION_AUD = 'builder-session';
 export async function mintNimbusSessionToken(
   payload: NimbusJwtPayload,
   secret: string,
-  ttlSeconds = 60 * 60 * 24 * 7,
+  ttlSeconds = NIMBUS_COOKIE_MAX_AGE_SECONDS,
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const key = new TextEncoder().encode(secret);

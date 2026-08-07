@@ -18,6 +18,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getNimbusApiKey,
   mintNimbusSessionToken,
+  serializeNimbusSessionCookie,
   NIMBUS_COOKIE_NAME,
   requireBuilderAuth,
 } from './nimbus-sso';
@@ -204,5 +205,36 @@ describe('getNimbusApiKey — whose balance pays', () => {
     // With SSO off there are no sessions at all, so a container key is the
     // only way to run Builder locally.
     expect(getNimbusApiKey({ NIMBUS_API_KEY: 'sk-operator', NIMBUS_SSO_DISABLED: 'true' }, null)).toBe('sk-operator');
+  });
+});
+
+describe('session lifetime', () => {
+  it('issues an 8-hour session, not a week', async () => {
+    const token = await mintNimbusSessionToken({ sub: 'cus_1' } as never, SECRET);
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+    const ttl = payload.exp - payload.iat;
+
+    expect(ttl).toBe(60 * 60 * 8);
+  });
+
+  it('keeps the Domain attribute so the dashboard-minted cookie still works', () => {
+    /*
+     * PR #11 pairs the shorter TTL with a `__Host-` prefix. Not adopted:
+     * `__Host-` forbids Domain, and this cookie is deliberately scoped to
+     * `.nimbusapi.net` so Builder can honour a session minted by the dashboard
+     * (nimbus-v2 sets `nimbus_session` in its OAuth callbacks; _index.tsx
+     * accepts "either ours or the dashboard's"). The prefix would break that
+     * path and invalidate every live session.
+     */
+    const cookie = serializeNimbusSessionCookie('tok', {});
+
+    expect(cookie).toContain('Domain=.nimbusapi.net');
+    expect(cookie).not.toContain('__Host-');
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('Secure');
+    // Lax, not Strict: the handoff arrives as a top-level redirect from the
+    // dashboard, which Strict would drop.
+    expect(cookie).toContain('SameSite=Lax');
+    expect(cookie).toContain(`Max-Age=${60 * 60 * 8}`);
   });
 });
