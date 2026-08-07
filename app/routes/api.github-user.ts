@@ -197,10 +197,29 @@ async function githubUserAction({ request, context }: { request: Request; contex
     }
 
     if (action === 'get_token') {
-      // Return the GitHub token for git authentication
-      return json({
-        token: githubToken,
-      });
+      /*
+       * Was: `return json({ token: githubToken })`.
+       *
+       * `githubToken` resolves as `caller cookie key || server env`, so a
+       * caller who simply sends no key of their own fell through to the
+       * OPERATOR's token and received it in a response body. Gating this route
+       * behind a session — done earlier in this branch — does not fix that: a
+       * valid customer session is not entitlement to the operator's
+       * credential, it just narrows who can ask.
+       *
+       * Nothing legitimately needs this. The browser already holds whatever
+       * key the customer configured (that is where `apiKeys` comes from), so
+       * the only value this endpoint could add is handing out a key the caller
+       * did not have. 410 rather than 404 because the route still exists and
+       * the removal is deliberate.
+       *
+       * Inert on this deployment today — no GITHUB_TOKEN is set on the
+       * container — which is precisely why it is worth closing before one is.
+       */
+      return json(
+        { error: 'gone', message: 'Server-held credentials are no longer returned to the browser.' },
+        { status: 410 },
+      );
     }
 
     if (action === 'search_repos') {
