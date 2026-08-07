@@ -485,3 +485,40 @@ export async function requireBuilderAuth(request: Request, context?: unknown): P
     },
   });
 }
+
+/**
+ * An env whose NIMBUS_API_KEY is the CALLER's key, never the container's.
+ *
+ * The Builder's chat path hands `context.cloudflare.env` straight to the LLM
+ * provider, which resolves its credential via
+ * `getProviderBaseUrlAndKey({ serverEnv, defaultApiTokenKey: 'NIMBUS_API_KEY' })`.
+ * So the provider reads the container key directly and never consults
+ * `getNimbusApiKey` — meaning the per-customer delegation added for
+ * api.nimbus-proxy did not cover chat at all, and every customer's inference
+ * would bill to the operator once a container key existed.
+ *
+ * Rather than teach the provider about sessions, the env it is given is scoped
+ * first: the customer's own key if the session carries one, and the variable
+ * REMOVED otherwise. Removed rather than set to undefined, because
+ * `convertEnvToRecord` stringifies values and would turn undefined into the
+ * literal "undefined" — a truthy key that fails upstream with a confusing 401.
+ *
+ * With no key the provider raises its own "sign in so the Builder inherits
+ * your session" error, which is the correct outcome: refusing the request is
+ * better than silently charging someone else for it.
+ */
+export function scopeEnvToCustomer<T>(env: T, session?: NimbusSession | null): T {
+  // Generic so the caller's env type survives — api.chat hands the result
+  // straight to code typed against Cloudflare's `Env`, and narrowing it to
+  // NimbusEnv there would be a type error rather than a safety improvement.
+  const scoped = { ...(env as unknown as Record<string, unknown>) };
+  const key = getNimbusApiKey(resolveNimbusEnv(env), session);
+
+  if (key) {
+    scoped.NIMBUS_API_KEY = key;
+  } else {
+    delete scoped.NIMBUS_API_KEY;
+  }
+
+  return scoped as unknown as T;
+}

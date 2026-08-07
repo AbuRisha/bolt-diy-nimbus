@@ -16,6 +16,11 @@ import { MCPService } from '~/lib/services/mcpService';
 import { StreamRecoveryManager } from '~/lib/.server/llm/stream-recovery';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
+import {
+  readNimbusSessionFromRequest,
+  resolveNimbusEnv,
+  scopeEnvToCustomer,
+} from '~/lib/.server/nimbus-sso';
 
 export async function action(args: ActionFunctionArgs) {
   // Route-level auth. SSO used to live only in the page loader, so calling
@@ -37,6 +42,21 @@ const logger = createScopedLogger('api.chat');
 // getApiKeysFromCookie / getProviderSettingsFromCookie imports above.
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
+  /*
+   * Scope the env to THIS customer before anything downstream sees it.
+   *
+   * Everything below hands `customerEnv` to the LLM provider instead of the
+   * raw container env. The provider resolves its credential straight out of
+   * `serverEnv.NIMBUS_API_KEY`, so passing the container env would bill every
+   * customer's inference to the operator — the per-customer delegation added
+   * for api.nimbus-proxy never reached this path.
+   *
+   * Resolved once per request rather than at each call site, so a future
+   * `env:` added below cannot quietly reintroduce the container key.
+   */
+  const nimbusSession = await readNimbusSessionFromRequest(request, resolveNimbusEnv(context.cloudflare?.env));
+  const customerEnv = scopeEnvToCustomer(context.cloudflare?.env, nimbusSession);
+
   const streamRecovery = new StreamRecoveryManager({
     timeout: 45000,
     maxRetries: 2,
@@ -115,7 +135,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
           summary = await createSummary({
             messages: [...processedMessages],
-            env: context.cloudflare?.env,
+            env: customerEnv,
             apiKeys,
             providerSettings,
             promptId,
@@ -157,7 +177,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           console.log(`Messages count: ${processedMessages.length}`);
           filteredFiles = await selectContext({
             messages: [...processedMessages],
-            env: context.cloudflare?.env,
+            env: customerEnv,
             apiKeys,
             files,
             providerSettings,
@@ -263,7 +283,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
             const result = await streamText({
               messages: [...processedMessages],
-              env: context.cloudflare?.env,
+              env: customerEnv,
               options,
               apiKeys,
               files,
@@ -304,7 +324,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
         const result = await streamText({
           messages: [...processedMessages],
-          env: context.cloudflare?.env,
+          env: customerEnv,
           options,
           apiKeys,
           files,

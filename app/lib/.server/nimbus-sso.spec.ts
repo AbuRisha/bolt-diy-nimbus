@@ -21,6 +21,7 @@ import {
   serializeNimbusSessionCookie,
   NIMBUS_COOKIE_NAME,
   requireBuilderAuth,
+  scopeEnvToCustomer,
 } from './nimbus-sso';
 
 const SECRET = 'test-secret-not-a-real-one';
@@ -236,5 +237,49 @@ describe('session lifetime', () => {
     // dashboard, which Strict would drop.
     expect(cookie).toContain('SameSite=Lax');
     expect(cookie).toContain(`Max-Age=${60 * 60 * 8}`);
+  });
+});
+
+describe('scopeEnvToCustomer — the chat path bills the right person', () => {
+  const sessionWith = (nimbus_key?: string) =>
+    ({ token: 't', payload: { sub: 'cus_1', ...(nimbus_key ? { nimbus_key } : {}) } }) as never;
+
+  it("substitutes the customer's own key", () => {
+    const scoped = scopeEnvToCustomer(
+      { NIMBUS_API_KEY: 'sk-operator', NIMBUS_API_BASE_URL: 'https://api.nimbusapi.net/v1' },
+      sessionWith('sk-nim-live-customer'),
+    );
+
+    expect(scoped.NIMBUS_API_KEY).toBe('sk-nim-live-customer');
+    // Everything else must survive — the provider also reads the base URL.
+    expect(scoped.NIMBUS_API_BASE_URL).toBe('https://api.nimbusapi.net/v1');
+  });
+
+  it('REMOVES the key when the session has none, rather than leaking the operator key', () => {
+    /*
+     * The load-bearing case. api.chat hands this env straight to the LLM
+     * provider, which reads `serverEnv.NIMBUS_API_KEY` directly and never
+     * consults getNimbusApiKey — so without this, every customer's chat
+     * inference would bill to the operator the moment a container key exists.
+     */
+    const scoped = scopeEnvToCustomer({ NIMBUS_API_KEY: 'sk-operator' }, sessionWith());
+
+    expect('NIMBUS_API_KEY' in scoped).toBe(false);
+  });
+
+  it('deletes rather than setting undefined', () => {
+    // convertEnvToRecord stringifies values, so an undefined would reach the
+    // provider as the literal "undefined" — a truthy key that fails upstream
+    // with a confusing 401 instead of the provider's own sign-in message.
+    const scoped = scopeEnvToCustomer({ NIMBUS_API_KEY: 'sk-operator' }, null) as Record<string, unknown>;
+
+    expect(Object.values(scoped)).not.toContain(undefined);
+    expect(JSON.stringify(scoped)).not.toContain('undefined');
+  });
+
+  it('still honours the container key when SSO is disabled (local dev)', () => {
+    const scoped = scopeEnvToCustomer({ NIMBUS_API_KEY: 'sk-operator', NIMBUS_SSO_DISABLED: 'true' }, null);
+
+    expect(scoped.NIMBUS_API_KEY).toBe('sk-operator');
   });
 });
