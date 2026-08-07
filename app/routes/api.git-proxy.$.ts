@@ -45,11 +45,11 @@ const EXPOSE_HEADERS = [
 ];
 
 // Handle all HTTP methods
-export async function action({ request, params }: ActionFunctionArgs) {
+export async function action({ request, context, params }: ActionFunctionArgs) {
   // Route-level auth — SSO lived in the page loader only, so calling this
   // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
   {
-    const denied = await requireBuilderAuth(request, undefined);
+    const denied = await requireBuilderAuth(request, context);
 
     if (denied) {
       return denied;

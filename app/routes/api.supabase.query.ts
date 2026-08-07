@@ -4,11 +4,11 @@ import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 const logger = createScopedLogger('api.supabase.query');
 
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, context }: ActionFunctionArgs) {
   // Route-level auth — SSO lived in the page loader only, so calling this
   // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
   {
-    const denied = await requireBuilderAuth(request, undefined);
+    const denied = await requireBuilderAuth(request, context);
 
     if (denied) {
       return denied;
