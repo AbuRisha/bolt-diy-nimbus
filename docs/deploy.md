@@ -143,3 +143,51 @@ the one you wanted.
 
 Note `*.md` is gitignored repo-wide (inherited from upstream), so this file and
 every other tracked doc needs `git add -f`.
+
+## The deployed artifact and the branch you would deploy next can disagree
+
+Learned on 2026-08-08 shipping a security fix to a sibling service, and it
+generalises to anything deployed from a tag, a patched build, or a hotfix
+branch rather than straight off `main`.
+
+The fix was built by applying two files onto the **live sha** — deliberately, so
+the diff between what was running and what shipped was exactly the fix and
+nothing else. That is the right way to ship a security change: a rollback then
+reverts only that change, and no unreviewed work rides along inside it.
+
+But it leaves the repository and production **disagreeing**, in the dangerous
+direction:
+
+```
+production   = live sha + fix        <- patched, correct
+main         = live sha (no fix)     <- would REINTRODUCE the leak
+```
+
+Nothing warns you. The next routine deploy off `main` builds green, passes every
+check, and silently undoes the fix. The build is not wrong — `main` genuinely
+does not contain the change.
+
+**So a minimal-diff deploy is only half the job. Land the same change on `main`
+before you consider the incident closed**, and verify it landed by grepping the
+merged branch for the fix rather than trusting the PR to have been merged:
+
+```bash
+git fetch origin main
+git grep -c '<marker from the fix>' origin/main -- <path>   # must be > 0
+```
+
+The related trap: **provenance answers "what is in this artifact", never "what
+will the next build contain".** An image sha, a `git_sha` in `/server_info`, an
+ACR digest — all describe the thing already built. None of them can tell you
+that the branch you will deploy from tomorrow still carries the fix.
+
+This is also why "the live build is not an ancestor of `origin/main`" is worth
+checking explicitly before reasoning about what is deployed:
+
+```bash
+git merge-base --is-ancestor <live-sha> origin/main && echo ancestor || echo DIVERGED
+```
+
+If it prints `DIVERGED`, then `main` is not the source of truth for what is
+running, and any claim of the form "main has X, so production has X" is unsound
+in both directions.
