@@ -318,7 +318,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           body: JSON.stringify({ prompt: effectiveInput, ...(referenceUrl.trim() ? { referenceUrl: referenceUrl.trim() } : {}) }),
         })
           .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`plan ${r.status}`))))
-          .then((data: { mode?: string; questions?: ClarifyQuestion[] }) => {
+          // `r.json()` resolves to `unknown`, so annotate inside rather than on
+          // the parameter — the body is unvalidated network input either way, and
+          // the checks below already narrow it.
+          .then((raw: unknown) => {
+            const data = (raw ?? {}) as { mode?: string; questions?: ClarifyQuestion[] };
             if (data && data.mode === 'questions' && Array.isArray(data.questions) && data.questions.length > 0) {
               setClarifyData({ questions: data.questions, pendingInput: effectiveInput, pendingEvent: event });
               setClarifyLoading(false);

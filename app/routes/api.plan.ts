@@ -40,7 +40,9 @@ export async function action({ context, request }: ActionFunctionArgs) {
       return json({ error: 'prompt_too_long' }, { status: 413 });
     }
 
-    const serverEnv = (context?.cloudflare?.env ?? {}) as Record<string, string>;
+    // Through `unknown`: Cloudflare's `Env` is an interface with declared
+    // members, not an index signature, so TS rejects the direct assertion.
+    const serverEnv = (context?.cloudflare?.env ?? {}) as unknown as Record<string, string>;
 
     // Optional reference URL research (Lovable "clone this vibe" flow)
     let referenceDigest: ReferenceDigest | null = null;

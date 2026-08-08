@@ -1,3 +1,4 @@
+import type { CacheStorage as CfCacheStorage } from '@cloudflare/workers-types';
 import type { ServerBuild } from '@remix-run/cloudflare';
 import { createPagesFunctionHandler } from '@remix-run/cloudflare-pages';
 
@@ -87,15 +88,39 @@ export const onRequest: PagesFunction = async (context) => {
      * `pnpm run dockerstart`, and requesting the container FQDN directly — with
      * Cloudflare entirely out of the path — still returned enabled:false.
      */
-    getLoadContext: ({ context: pagesContext, request }) => ({
+    /*
+     * `pagesContext` is typed as the Remix load context, but at runtime the
+     * Pages adapter hands through the raw Cloudflare EventContext — which is
+     * the whole reason this function exists (see the note above). The two
+     * shapes genuinely disagree, so the annotation says so rather than
+     * pretending `.waitUntil` and `.env` are declared where they are not.
+     *
+     * Type-only. This was 3 of the 7 pre-existing tsc errors on main, which
+     * between them kept `pnpm run typecheck` red and therefore kept CI from
+     * being a usable gate.
+     */
+    getLoadContext: ({ context: pagesContext, request }: { context: any; request: Request }) => ({
       cloudflare: {
         env: pagesContext.cloudflare?.env ?? (pagesContext as any).env,
         cf: (request as any).cf,
+        /*
+         * Cast: Cloudflare's `ExecutionContext` also declares `props`, which
+         * the Pages runtime does not hand us here. Loaders only ever use
+         * waitUntil / passThroughOnException, so supplying those two is the
+         * honest shape — asserting the full interface would be the lie.
+         */
         ctx: {
           waitUntil: pagesContext.waitUntil?.bind(pagesContext),
           passThroughOnException: pagesContext.passThroughOnException?.bind(pagesContext),
-        },
-        caches,
+        } as unknown as ExecutionContext,
+        /*
+         * Two different `CacheStorage` types are in scope: the DOM lib's, which
+         * the global `caches` is typed as, and Cloudflare's, which additionally
+         * requires `.default`. The workerd runtime object really does have
+         * `default` — this is a types-package disagreement, not a missing
+         * capability — so the cast asserts what is actually there.
+         */
+        caches: caches as unknown as CfCacheStorage,
       },
     }),
   });
