@@ -47,6 +47,34 @@ streaming, so the checkmark is never printed. Without it the build can complete
 server-side while the CLI dies before reporting the push, which reads as a
 failed build that actually succeeded.
 
+*Disagreement worth recording rather than smoothing over:* another session
+reports `PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` DO stop the crash. Those
+were measured failing here. Conditions differ (shell, console host, az
+version), and `--no-logs` sidesteps the question entirely, so it stays the
+recommendation. If you have five spare minutes, settle it and delete whichever
+half of this paragraph is wrong.
+
+**Neither the exit code nor the console tells you a build finished.** The
+encoding crash is the loud failure; the quiet one is worse — `az acr build` can
+return **exit 0 while the build is still running**, so a green CLI proves
+nothing about whether an image was produced. Reported by another session and
+the remedy verified here: `az acr task list-runs` distinguishes them, because a
+run in flight has a status and no finish time.
+
+```bash
+az acr task list-runs --registry nimbusacr4768 --top 5 \
+  --query "[].{run:runId,status:status,tag:outputImages[0].tag,finished:finishTime}" -o table
+```
+
+```
+dt14r  Running                                          <- no finish time
+dt14q  Succeeded  2026-08-08T13:15:22+00:00
+```
+
+Treat that as the authority. `--no-logs` makes the CLI quiet by design, which
+means it removes the only signal you had left — so pairing the two is the point,
+not an extra step.
+
 **Build from a worktree, never the working tree.** `az acr build` walks
 `node_modules` while packing despite `.dockerignore`, and pnpm's symlink farm
 makes it fail with `[WinError 2] ... LICENSE`.
