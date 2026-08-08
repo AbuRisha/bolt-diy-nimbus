@@ -307,25 +307,34 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
       const effectiveInput = (messageInput ?? input ?? '').trim();
 
-      // First-message clarify hook: only fire on the very first user turn,
-      // when the prompt is substantive enough to be worth clarifying, and only
-      // if we're not already showing chips / loading them.
+      /*
+       * First-message clarify hook: only fire on the very first user turn,
+       * when the prompt is substantive enough to be worth clarifying, and only
+       * if we're not already showing chips / loading them.
+       */
       if (!chatStarted && !clarifyData && !clarifyLoading && effectiveInput.length >= 12) {
         setClarifyLoading(true);
         fetch('/api/plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: effectiveInput, ...(referenceUrl.trim() ? { referenceUrl: referenceUrl.trim() } : {}) }),
+          body: JSON.stringify({
+            prompt: effectiveInput,
+            ...(referenceUrl.trim() ? { referenceUrl: referenceUrl.trim() } : {}),
+          }),
         })
           .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`plan ${r.status}`))))
-          // `r.json()` resolves to `unknown`, so annotate inside rather than on
-          // the parameter — the body is unvalidated network input either way, and
-          // the checks below already narrow it.
+          /*
+           * `r.json()` resolves to `unknown`, so annotate inside rather than on
+           * the parameter — the body is unvalidated network input either way, and
+           * the checks below already narrow it.
+           */
           .then((raw: unknown) => {
             const data = (raw ?? {}) as { mode?: string; questions?: ClarifyQuestion[] };
+
             if (data && data.mode === 'questions' && Array.isArray(data.questions) && data.questions.length > 0) {
               setClarifyData({ questions: data.questions, pendingInput: effectiveInput, pendingEvent: event });
               setClarifyLoading(false);
+
               return;
             }
 
@@ -337,6 +346,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             setClarifyLoading(false);
             finalizeSend(event, messageInput);
           });
+
         return;
       }
 
@@ -437,19 +447,14 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             {!chatStarted && (
               <>
                 {/* Hero background art — atelier scene, fades to ink at edges */}
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
-                >
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
                   <img
                     src="/brand/builder-hero-atelier.png"
                     alt=""
                     className="absolute inset-0 w-full h-full object-cover opacity-25"
                     style={{
-                      WebkitMaskImage:
-                        'radial-gradient(ellipse 70% 65% at 50% 45%, #000 45%, transparent 100%)',
-                      maskImage:
-                        'radial-gradient(ellipse 70% 65% at 50% 45%, #000 45%, transparent 100%)',
+                      WebkitMaskImage: 'radial-gradient(ellipse 70% 65% at 50% 45%, #000 45%, transparent 100%)',
+                      maskImage: 'radial-gradient(ellipse 70% 65% at 50% 45%, #000 45%, transparent 100%)',
                     }}
                     loading="eager"
                     decoding="async"
@@ -458,8 +463,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   <div
                     className="absolute inset-0"
                     style={{
-                      background:
-                        'radial-gradient(ellipse 80% 70% at 50% 50%, transparent 55%, #05070E 100%)',
+                      background: 'radial-gradient(ellipse 80% 70% at 50% 50%, transparent 55%, #05070E 100%)',
                     }}
                   />
                 </div>
@@ -574,7 +578,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         <button
                           type="button"
                           className="text-gray-400 hover:text-white transition-colors"
-                          onClick={() => { setShowRefUrl(false); setReferenceUrl(''); }}
+                          onClick={() => {
+                            setShowRefUrl(false);
+                            setReferenceUrl('');
+                          }}
                           title="Remove reference URL"
                         >
                           ✕

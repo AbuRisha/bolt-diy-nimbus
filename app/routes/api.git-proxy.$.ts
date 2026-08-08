@@ -46,8 +46,10 @@ const EXPOSE_HEADERS = [
 
 // Handle all HTTP methods
 export async function action({ request, context, params }: ActionFunctionArgs) {
-  // Route-level auth — SSO lived in the page loader only, so calling this
-  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  /*
+   * Route-level auth — SSO lived in the page loader only, so calling this
+   * route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+   */
   {
     const denied = await requireBuilderAuth(request, context);
 
@@ -151,8 +153,10 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
        */
     }
 
-    // Forward the request to the target URL
-    // safeFetch: a git host answering 302 toward internal space must not be followed blindly.
+    /*
+     * Forward the request to the target URL
+     * safeFetch: a git host answering 302 toward internal space must not be followed blindly.
+     */
     const response = await safeFetch(targetURL, fetchOptions);
 
     console.log('Response status:', response.status);

@@ -48,9 +48,10 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
   const env = resolveNimbusEnv((context as any)?.cloudflare?.env);
   const secret = getNimbusSharedSecret(env);
 
-
-  // Escape hatch for local dev / CI. Also self-heals when the container was
-  // deployed without a shared secret so the app doesn't hard-redirect-loop.
+  /*
+   * Escape hatch for local dev / CI. Also self-heals when the container was
+   * deployed without a shared secret so the app doesn't hard-redirect-loop.
+   */
   if (isNimbusSsoDisabled(env) || !secret) {
     return json({
       nimbusSso: {
@@ -73,14 +74,16 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
 
       const target = `${url.pathname}${url.search}${url.hash}` || '/';
 
-      // Do NOT store the bootstrap token as the session. It lives 60 seconds by
-      // design (it is a hand-off credential, short so a copied URL is dead on
-      // arrival), and serializeNimbusSessionCookie clamps Max-Age to the token's
-      // own exp - so the session would expire a minute after sign-in and bounce
-      // the user back to the dashboard, forever. Mint a real session instead.
-      // Resolve the customer's OWN api key once, at handoff, and carry it in
-      // the session cookie. Their usage then bills to their balance instead of
-      // the shared container key. Once per session, never per request.
+      /*
+       * Do NOT store the bootstrap token as the session. It lives 60 seconds by
+       * design (it is a hand-off credential, short so a copied URL is dead on
+       * arrival), and serializeNimbusSessionCookie clamps Max-Age to the token's
+       * own exp - so the session would expire a minute after sign-in and bounce
+       * the user back to the dashboard, forever. Mint a real session instead.
+       * Resolve the customer's OWN api key once, at handoff, and carry it in
+       * the session cookie. Their usage then bills to their balance instead of
+       * the shared container key. Once per session, never per request.
+       */
       const ownKey = await fetchCustomerApiKey(
         typeof verified.payload.sub === 'string' ? verified.payload.sub : undefined,
         env,
@@ -97,8 +100,10 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
       });
     }
 
-    // A bad/expired token behaves like no token — fall through to the cookie
-    // check, then to the dashboard hand-off.
+    /*
+     * A bad/expired token behaves like no token — fall through to the cookie
+     * check, then to the dashboard hand-off.
+     */
   }
 
   // Step 2 — honor an existing signed cookie (either ours or the dashboard's).
@@ -111,10 +116,7 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
      * returns `configured: false` on any failure, which the UI renders as
      * "unavailable" rather than as a zero balance.
      */
-    const account = await fetchNimbusAccount(
-      (session.payload.sub as string | undefined) ?? undefined,
-      env,
-    );
+    const account = await fetchNimbusAccount((session.payload.sub as string | undefined) ?? undefined, env);
 
     return json({
       nimbusSso: {

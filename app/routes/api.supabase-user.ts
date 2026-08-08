@@ -18,7 +18,6 @@ async function supabaseUserLoader({ request, context }: { request: Request; cont
       return json({ error: 'Supabase token not found' }, { status: 401 });
     }
 
-
     // Make server-side request to Supabase API
     const response = await fetch('https://api.supabase.com/v1/projects', {
       headers: {
@@ -101,6 +100,7 @@ async function supabaseUserAction({ request, context }: { request: Request; cont
     if (!supabaseToken) {
       return json({ error: 'Supabase token not found' }, { status: 401 });
     }
+
     /*
      * Did this token come from the CALLER, or from the operator's env?
      *
@@ -170,7 +170,8 @@ async function supabaseUserAction({ request, context }: { request: Request; cont
         return json(
           {
             error: 'gone',
-            message: 'Project API keys are not returned using server-held credentials. Connect your own Supabase token.',
+            message:
+              'Project API keys are not returned using server-held credentials. Connect your own Supabase token.',
           },
           { status: 410 },
         );

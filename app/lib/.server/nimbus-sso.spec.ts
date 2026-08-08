@@ -120,11 +120,7 @@ describe('requireBuilderAuth', () => {
      * minting a full 7-day token and asserting it was expired. The code was
      * right; the test was measuring nothing.
      */
-    const token = await mintNimbusSessionToken(
-      { sub: 'cus_test', email: 'test@example.com' } as never,
-      SECRET,
-      -60,
-    );
+    const token = await mintNimbusSessionToken({ sub: 'cus_test', email: 'test@example.com' } as never, SECRET, -60);
 
     const denied = await requireBuilderAuth(
       requestWithCookie(`${NIMBUS_COOKIE_NAME}=${token}`),
@@ -169,8 +165,10 @@ describe('requireBuilderAuth', () => {
   });
 
   it('still honours the explicit disable flag even in production', async () => {
-    // NIMBUS_SSO_DISABLED is a deliberate operator action, unlike an absent
-    // secret which is usually an accident.
+    /*
+     * NIMBUS_SSO_DISABLED is a deliberate operator action, unlike an absent
+     * secret which is usually an accident.
+     */
     const denied = await requireBuilderAuth(
       requestWithCookie(),
       ctx({ NODE_ENV: 'production', NIMBUS_SSO_DISABLED: 'true' }),
@@ -181,8 +179,12 @@ describe('requireBuilderAuth', () => {
 });
 
 describe('getNimbusApiKey — whose balance pays', () => {
-  const sessionWith = (nimbus_key?: string) =>
-    ({ token: 't', payload: { sub: 'cus_1', ...(nimbus_key ? { nimbus_key } : {}) } }) as never;
+  /*
+   * The claim on the wire stays snake_case (`nimbus_key`); only the local
+   * parameter is camelCase, which is what the naming rule governs.
+   */
+  const sessionWith = (nimbusKey?: string) =>
+    ({ token: 't', payload: { sub: 'cus_1', ...(nimbusKey ? { nimbus_key: nimbusKey } : {}) } }) as never;
 
   it("uses the customer's own key when the session carries one", () => {
     expect(getNimbusApiKey({ NIMBUS_API_KEY: 'sk-operator' }, sessionWith('sk-nim-live-customer'))).toBe(
@@ -203,8 +205,10 @@ describe('getNimbusApiKey — whose balance pays', () => {
   });
 
   it('still allows the container key when SSO is disabled (local dev)', () => {
-    // With SSO off there are no sessions at all, so a container key is the
-    // only way to run Builder locally.
+    /*
+     * With SSO off there are no sessions at all, so a container key is the
+     * only way to run Builder locally.
+     */
     expect(getNimbusApiKey({ NIMBUS_API_KEY: 'sk-operator', NIMBUS_SSO_DISABLED: 'true' }, null)).toBe('sk-operator');
   });
 });
@@ -233,16 +237,23 @@ describe('session lifetime', () => {
     expect(cookie).not.toContain('__Host-');
     expect(cookie).toContain('HttpOnly');
     expect(cookie).toContain('Secure');
-    // Lax, not Strict: the handoff arrives as a top-level redirect from the
-    // dashboard, which Strict would drop.
+
+    /*
+     * Lax, not Strict: the handoff arrives as a top-level redirect from the
+     * dashboard, which Strict would drop.
+     */
     expect(cookie).toContain('SameSite=Lax');
     expect(cookie).toContain(`Max-Age=${60 * 60 * 8}`);
   });
 });
 
 describe('scopeEnvToCustomer — the chat path bills the right person', () => {
-  const sessionWith = (nimbus_key?: string) =>
-    ({ token: 't', payload: { sub: 'cus_1', ...(nimbus_key ? { nimbus_key } : {}) } }) as never;
+  /*
+   * The claim on the wire stays snake_case (`nimbus_key`); only the local
+   * parameter is camelCase, which is what the naming rule governs.
+   */
+  const sessionWith = (nimbusKey?: string) =>
+    ({ token: 't', payload: { sub: 'cus_1', ...(nimbusKey ? { nimbus_key: nimbusKey } : {}) } }) as never;
 
   it("substitutes the customer's own key", () => {
     const scoped = scopeEnvToCustomer(
@@ -251,6 +262,7 @@ describe('scopeEnvToCustomer — the chat path bills the right person', () => {
     );
 
     expect(scoped.NIMBUS_API_KEY).toBe('sk-nim-live-customer');
+
     // Everything else must survive — the provider also reads the base URL.
     expect(scoped.NIMBUS_API_BASE_URL).toBe('https://api.nimbusapi.net/v1');
   });
@@ -268,9 +280,11 @@ describe('scopeEnvToCustomer — the chat path bills the right person', () => {
   });
 
   it('deletes rather than setting undefined', () => {
-    // convertEnvToRecord stringifies values, so an undefined would reach the
-    // provider as the literal "undefined" — a truthy key that fails upstream
-    // with a confusing 401 instead of the provider's own sign-in message.
+    /*
+     * convertEnvToRecord stringifies values, so an undefined would reach the
+     * provider as the literal "undefined" — a truthy key that fails upstream
+     * with a confusing 401 instead of the provider's own sign-in message.
+     */
     const scoped = scopeEnvToCustomer({ NIMBUS_API_KEY: 'sk-operator' }, null) as Record<string, unknown>;
 
     expect(Object.values(scoped)).not.toContain(undefined);

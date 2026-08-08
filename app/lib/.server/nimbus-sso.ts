@@ -57,6 +57,7 @@ export type NimbusEnv = Record<string, string | undefined>;
 export type NimbusJwtPayload = JWTPayload & {
   sub?: string;
   email?: string;
+
   /** Optional per-user upstream API key baked into the token. */
   nimbus_key?: string;
 };
@@ -177,10 +178,7 @@ export async function verifyNimbusToken(token: string, secret: string): Promise<
   }
 }
 
-export async function readNimbusSessionFromRequest(
-  request: Request,
-  env: NimbusEnv,
-): Promise<NimbusSession | null> {
+export async function readNimbusSessionFromRequest(request: Request, env: NimbusEnv): Promise<NimbusSession | null> {
   const secret = getNimbusSharedSecret(env);
 
   if (!secret) {
@@ -274,7 +272,6 @@ export function getNimbusUpstreamBase(env: NimbusEnv): string {
   return raw.endsWith('/') ? raw.slice(0, -1) : raw;
 }
 
-
 /**
  * Audience for the SESSION token, distinct from the bootstrap token's
  * `builder`/`chat` audience so the two can never be confused for one another.
@@ -308,9 +305,12 @@ export async function mintNimbusSessionToken(
   return new SignJWT({
     email: payload.email,
     name: (payload as { name?: string }).name,
-    // Per-customer billing. Safe HERE and only here: the session token is an
-    // HttpOnly cookie, never a URL parameter, so unlike the bootstrap token it
-    // does not land in the address bar, history, or a Referer header.
+
+    /*
+     * Per-customer billing. Safe HERE and only here: the session token is an
+     * HttpOnly cookie, never a URL parameter, so unlike the bootstrap token it
+     * does not land in the address bar, history, or a Referer header.
+     */
     nimbus_key: payload.nimbus_key,
   })
     .setProtectedHeader({ alg: 'HS256' })
@@ -320,7 +320,6 @@ export async function mintNimbusSessionToken(
     .setExpirationTime(now + ttlSeconds)
     .sign(key);
 }
-
 
 /**
  * Fetch the signed-in customer's OWN Nimbus API key from nimbusapi.net.
@@ -383,10 +382,7 @@ async function signCustomerId(sub: string, secret: string): Promise<string> {
  * secret is missing or nimbusapi.net could not be reached. Rendering that as
  * $0.00 would tell someone with money that they have none.
  */
-export async function fetchNimbusAccount(
-  sub: string | undefined,
-  env: NimbusEnv,
-): Promise<NimbusAccountSummary> {
+export async function fetchNimbusAccount(sub: string | undefined, env: NimbusEnv): Promise<NimbusAccountSummary> {
   const empty: NimbusAccountSummary = {
     configured: false,
     builder: { hasKey: false, spendCapUsd: null, spentUsd: 0, requestCount: 0 },
@@ -438,10 +434,7 @@ export async function fetchNimbusAccount(
   }
 }
 
-export async function fetchCustomerApiKey(
-  sub: string | undefined,
-  env: NimbusEnv,
-): Promise<string | undefined> {
+export async function fetchCustomerApiKey(sub: string | undefined, env: NimbusEnv): Promise<string | undefined> {
   const secret = getNimbusSharedSecret(env);
 
   if (!sub || !secret) {
@@ -468,6 +461,7 @@ export async function fetchCustomerApiKey(
     const resp = await fetch(`${base}/api/internal/chat-key`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-nimbus-chat-sig': sig },
+
       /*
        * `product: 'builder'` is what stops Builder and chat fighting over one
        * key. Without it both mint under the same name, so every Builder login
@@ -557,17 +551,14 @@ export async function requireBuilderAuth(request: Request, context?: unknown): P
       return null;
     }
 
-    return new Response(
-      JSON.stringify({ error: 'unauthorized', message: 'Builder SSO is not configured.' }),
-      {
-        status: 401,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-          'WWW-Authenticate': 'Cookie realm="nimbus-builder"',
-        },
+    return new Response(JSON.stringify({ error: 'unauthorized', message: 'Builder SSO is not configured.' }), {
+      status: 401,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        'WWW-Authenticate': 'Cookie realm="nimbus-builder"',
       },
-    );
+    });
   }
 
   const session = await readNimbusSessionFromRequest(request, env);
@@ -580,8 +571,11 @@ export async function requireBuilderAuth(request: Request, context?: unknown): P
     status: 401,
     headers: {
       'Content-Type': 'application/json',
-      // A denial must never be cached by an intermediary and then served to
-      // an authenticated caller, nor the reverse.
+
+      /*
+       * A denial must never be cached by an intermediary and then served to
+       * an authenticated caller, nor the reverse.
+       */
       'Cache-Control': 'no-store',
       'WWW-Authenticate': 'Cookie realm="nimbus-builder"',
     },
@@ -610,9 +604,11 @@ export async function requireBuilderAuth(request: Request, context?: unknown): P
  * better than silently charging someone else for it.
  */
 export function scopeEnvToCustomer<T>(env: T, session?: NimbusSession | null): T {
-  // Generic so the caller's env type survives — api.chat hands the result
-  // straight to code typed against Cloudflare's `Env`, and narrowing it to
-  // NimbusEnv there would be a type error rather than a safety improvement.
+  /*
+   * Generic so the caller's env type survives — api.chat hands the result
+   * straight to code typed against Cloudflare's `Env`, and narrowing it to
+   * NimbusEnv there would be a type error rather than a safety improvement.
+   */
   const scoped = { ...(env as unknown as Record<string, unknown>) };
   const key = getNimbusApiKey(resolveNimbusEnv(env), session);
 

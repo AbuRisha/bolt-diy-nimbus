@@ -4,8 +4,10 @@ import { getApiKeysFromCookie } from '~/lib/api/cookies';
 import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export const loader: LoaderFunction = async ({ context, request }) => {
-  // Route-level auth — SSO lived in the page loader only, so calling this
-  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  /*
+   * Route-level auth — SSO lived in the page loader only, so calling this
+   * route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+   */
   {
     const denied = await requireBuilderAuth(request, context);
 

@@ -143,8 +143,10 @@ function formatIssueBody(data: z.infer<typeof bugReportSchema>): string {
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
-  // Route-level auth — SSO lived in the page loader only, so calling this
-  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  /*
+   * Route-level auth — SSO lived in the page loader only, so calling this
+   * route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+   */
   {
     const denied = await requireBuilderAuth(request, context);
 

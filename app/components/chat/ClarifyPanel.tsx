@@ -8,8 +8,10 @@ import type { ClarifyQuestion } from './ClarifyChips';
 
 interface ClarifyPanelProps {
   questions: ClarifyQuestion[];
+
   /** Called with collected answers when the user clicks "Build Now". */
   onComplete: (answers: Record<string, string>) => void;
+
   /** Called when the user skips all remaining questions. */
   onSkip: () => void;
 }
@@ -74,11 +76,7 @@ export const ClarifyPanel: React.FC<ClarifyPanelProps> = ({ questions, onComplet
 
       {/* Footer actions */}
       <div className="flex items-center justify-end gap-3 pt-1 border-t border-white/5">
-        <button
-          type="button"
-          onClick={onSkip}
-          className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
-        >
+        <button type="button" onClick={onSkip} className="text-xs text-gray-400 hover:text-gray-200 transition-colors">
           Skip
         </button>
         <button

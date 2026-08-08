@@ -2,8 +2,10 @@ import { json, type ActionFunction } from '@remix-run/cloudflare';
 import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export const action: ActionFunction = async ({ request, context }) => {
-  // Route-level auth — SSO lived in the page loader only, so calling this
-  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  /*
+   * Route-level auth — SSO lived in the page loader only, so calling this
+   * route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+   */
   {
     const denied = await requireBuilderAuth(request, context);
 

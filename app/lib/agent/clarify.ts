@@ -51,15 +51,25 @@ QUESTION RULES:
 function trulyEmpty(prompt: string): boolean {
   const clean = prompt.replace(/\s+/g, ' ').trim();
   const words = clean.split(' ').filter(Boolean).length;
+
   return clean.length < 6 && words < 2;
 }
 
 function materiallyVague(prompt: string): boolean {
   const clean = prompt.replace(/\s+/g, ' ').trim().toLowerCase();
   const words = clean.split(' ').filter(Boolean);
-  if (words.length > 6) return false;
-  const genericRequest = /\b(?:make|build|create|fix|change|improve|better|nice|cool|modern|website|app|thing|it|this)\b/g;
-  const meaningful = clean.replace(genericRequest, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+
+  if (words.length > 6) {
+    return false;
+  }
+
+  const genericRequest =
+    /\b(?:make|build|create|fix|change|improve|better|nice|cool|modern|website|app|thing|it|this)\b/g;
+  const meaningful = clean
+    .replace(genericRequest, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
   return meaningful.length < 4;
 }
 
@@ -79,54 +89,97 @@ function vagueQuestions(): ClarifyQuestion[] {
 }
 
 function coerceChips(raw: unknown): ClarifyChip[] {
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
   const seen = new Set<string>();
   const out: ClarifyChip[] = [];
+
   for (const item of raw) {
-    const clean = String(item ?? '').replace(/\s+/g, ' ').trim().slice(0, 32);
-    if (!clean || seen.has(clean.toLowerCase())) continue;
+    const clean = String(item ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 32);
+
+    if (!clean || seen.has(clean.toLowerCase())) {
+      continue;
+    }
+
     seen.add(clean.toLowerCase());
     out.push(clean);
-    if (out.length >= 4) break;
+
+    if (out.length >= 4) {
+      break;
+    }
   }
+
   return out;
 }
 
 function coerceQuestions(raw: unknown): ClarifyQuestion[] {
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
   const seen = new Set<string>();
   const out: ClarifyQuestion[] = [];
+
   for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
     const value = item as Record<string, unknown>;
-    const question = String(value.question || '').replace(/\s+/g, ' ').trim();
-    if (question.length < 4) continue;
+    const question = String(value.question || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (question.length < 4) {
+      continue;
+    }
+
     const key = question.toLowerCase();
-    if (seen.has(key)) continue;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
     seen.add(key);
+
     const id =
-      String(value.id || '').replace(/[^a-z0-9-]/gi, '-').toLowerCase().slice(0, 48) ||
-      `q-${out.length + 1}`;
+      String(value.id || '')
+        .replace(/[^a-z0-9-]/gi, '-')
+        .toLowerCase()
+        .slice(0, 48) || `q-${out.length + 1}`;
     out.push({ id, question: question.slice(0, 300), chips: coerceChips(value.chips) });
-    if (out.length >= 4) break;
+
+    if (out.length >= 4) {
+      break;
+    }
   }
+
   return out;
 }
 
 function parseJson<T = unknown>(text: string): T | Record<string, never> {
   const clean = text.trim();
+
   // Strip common markdown code fences.
   const stripped = clean.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+
   try {
     return JSON.parse(stripped) as T;
   } catch {
     // Try to find a JSON object anywhere in the text as fallback.
     const match = stripped.match(/\{[\s\S]*\}/);
+
     if (match) {
       try {
         return JSON.parse(match[0]) as T;
       } catch {}
     }
+
     return {} as Record<string, never>;
   }
 }
@@ -135,11 +188,9 @@ function parseJson<T = unknown>(text: string): T | Record<string, never> {
  * Classify the prompt. Resilient: any model/parse failure returns build so the
  * pipeline never stalls.
  */
-export async function classifyAndQuestion(
-  prompt: string,
-  serverEnv: Record<string, string>,
-): Promise<ClarifyDecision> {
+export async function classifyAndQuestion(prompt: string, serverEnv: Record<string, string>): Promise<ClarifyDecision> {
   const clean = prompt.replace(/\s+/g, ' ').trim();
+
   if (trulyEmpty(clean)) {
     return {
       mode: 'questions',
@@ -153,6 +204,7 @@ export async function classifyAndQuestion(
       ],
     };
   }
+
   if (materiallyVague(clean)) {
     return {
       mode: 'questions',
@@ -163,10 +215,12 @@ export async function classifyAndQuestion(
 
   try {
     const provider = LLMManager.getInstance(serverEnv).getProvider(CLASSIFIER_PROVIDER);
+
     if (!provider) {
       logger.warn(`Provider ${CLASSIFIER_PROVIDER} not registered; skipping classifier`);
       return { mode: 'build', questions: [], reason: 'Classifier unavailable.' };
     }
+
     const model = provider.getModelInstance({
       model: CLASSIFIER_MODEL,
       serverEnv: serverEnv as unknown as Env,
@@ -182,8 +236,7 @@ export async function classifyAndQuestion(
 
     const parsed = parseJson<{ mode?: string; reason?: string; questions?: unknown }>(text);
     const questions = coerceQuestions(parsed.questions);
-    const wantsQuestions =
-      String(parsed.mode || '').toLowerCase() === 'questions' && questions.length > 0;
+    const wantsQuestions = String(parsed.mode || '').toLowerCase() === 'questions' && questions.length > 0;
 
     return {
       mode: wantsQuestions ? 'questions' : 'build',
@@ -192,9 +245,7 @@ export async function classifyAndQuestion(
           .replace(/\s+/g, ' ')
           .trim()
           .slice(0, 240) ||
-        (wantsQuestions
-          ? 'Clarification would improve the result.'
-          : 'The request is clear enough to build.'),
+        (wantsQuestions ? 'Clarification would improve the result.' : 'The request is clear enough to build.'),
       questions: wantsQuestions ? questions : [],
     };
   } catch (err) {
