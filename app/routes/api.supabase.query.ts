@@ -1,9 +1,20 @@
 import { type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { createScopedLogger } from '~/utils/logger';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 const logger = createScopedLogger('api.supabase.query');
 
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, context }: ActionFunctionArgs) {
+  // Route-level auth — SSO lived in the page loader only, so calling this
+  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  {
+    const denied = await requireBuilderAuth(request, context);
+
+    if (denied) {
+      return denied;
+    }
+  }
+
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }

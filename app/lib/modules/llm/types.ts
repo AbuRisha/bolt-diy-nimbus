@@ -30,6 +30,20 @@ export interface ModelInfo {
 export interface ProviderInfo {
   name: string;
   staticModels: ModelInfo[];
+
+  /**
+   * Opt in to keeping the order this provider returns models in.
+   *
+   * Off by default, and the default is the historical behaviour: LLMManager
+   * alphabetises every model it has by id, which is a reasonable fallback for
+   * a provider whose /models endpoint returns an arbitrary order.
+   *
+   * It is wrong for a provider that has curated an order. Nimbus groups its
+   * catalog by vendor and sorts each group newest-first; alphabetising threw
+   * all of that away and opened the picker on the oldest model in the list.
+   * Opt-in rather than a global change so no other provider's picker moves.
+   */
+  preservesModelOrder?: boolean;
   getDynamicModels?: (
     apiKeys?: Record<string, string>,
     settings?: IProviderSetting,

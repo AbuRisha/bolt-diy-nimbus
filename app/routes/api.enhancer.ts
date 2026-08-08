@@ -4,8 +4,16 @@ import { stripIndents } from '~/utils/stripIndent';
 import type { ProviderInfo } from '~/types/model';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 export async function action(args: ActionFunctionArgs) {
+  // Route-level auth. SSO used to live only in the page loader, so calling
+  // this route directly skipped it entirely. See requireBuilderAuth.
+  const denied = await requireBuilderAuth(args.request, args.context);
+
+  if (denied) {
+    return denied;
+  }
   return enhancerAction(args);
 }
 

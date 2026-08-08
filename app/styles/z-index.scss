@@ -1,11 +1,17 @@
 $zIndexMax: 999;
 
+// The sidebar is an opaque drawer; the logo is a fixed header element. With the
+// logo above it, "Nimbus Builder" painted straight through the open drawer and
+// collided with the menu contents underneath.
+//
+// The drawer must win: when it is open it is the foreground surface, and
+// anything behind it should be behind it.
 .z-logo {
-  z-index: $zIndexMax - 1;
+  z-index: $zIndexMax - 2;
 }
 
 .z-sidebar {
-  z-index: $zIndexMax - 2;
+  z-index: $zIndexMax - 1;
 }
 
 .z-port-dropdown {

@@ -26,7 +26,30 @@ export const NIMBUS_COOKIE_NAME = 'nimbus_session';
 export const NIMBUS_TOKEN_PARAM = 'nimbus_token';
 export const NIMBUS_DASHBOARD_DEFAULT = 'https://nimbusapi.net/dashboard';
 
-const NIMBUS_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // one week
+/*
+ * Eight hours, not a week.
+ *
+ * This cookie is the whole authentication story for Builder — anyone holding
+ * it is the customer, and (since the billing fix) spends that customer's
+ * balance. A week-long window on a bearer credential is far more than the
+ * product needs.
+ *
+ * Shortening it is close to free here because re-auth is invisible: an expired
+ * Builder session redirects to the dashboard, whose own session lasts 30 days
+ * (nimbus-v2 lib/session.ts SESSION_TTL_SECONDS), so it mints a fresh
+ * bootstrap token and bounces the user straight back without a login prompt.
+ * The cost is one redirect per working day; the gain is a 21x smaller window
+ * on a stolen cookie.
+ *
+ * Deliberately NOT adopting the `__Host-` prefix that PR #11 proposes with
+ * this change. `__Host-` forbids a Domain attribute, and this cookie is
+ * intentionally scoped to `.nimbusapi.net` so Builder can honour a session
+ * minted by the dashboard — nimbus-v2 sets `nimbus_session` in its Google and
+ * Discord OAuth callbacks, and _index.tsx step 2 accepts "either ours or the
+ * dashboard's". Adding the prefix would break that path and invalidate every
+ * live session at once.
+ */
+const NIMBUS_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 8; // eight hours
 const NIMBUS_COOKIE_MIN_AGE_SECONDS = 60; // never issue a sub-minute cookie
 
 export type NimbusEnv = Record<string, string | undefined>;
@@ -207,9 +230,28 @@ export function buildNimbusDashboardRedirect(env: NimbusEnv, nextSlug = 'builder
 }
 
 /**
- * Resolve the upstream API key. Prefers a per-user key embedded in the JWT (so
- * per-user usage/quotas stay accurate) and falls back to the container-wide
- * NIMBUS_API_KEY that ships with every deployment.
+ * Resolve the upstream API key for a customer request.
+ *
+ * The per-user key is embedded in the session JWT at SSO handoff, so usage
+ * bills to the customer who made the request.
+ *
+ * ── Why there is no fallback to NIMBUS_API_KEY in production ────────────────
+ * This used to end `return getEnvVal(env, 'NIMBUS_API_KEY')`, so any signed-in
+ * customer whose session carried no `nimbus_key` — a handoff where
+ * `fetchCustomerApiKey` failed, or a session minted before that field existed
+ * — silently spent the OPERATOR's key. Their inference billed to us, not them,
+ * with nothing in the request to show it.
+ *
+ * That is inert today only because the container has no NIMBUS_API_KEY set. It
+ * would go live the moment someone set one, which is the obvious thing to do
+ * to "make Builder work standalone" — `worker-configuration.d.ts` declares the
+ * variable and `bindings.sh` forwards it, so it is one `az containerapp
+ * update` away. Removing the fallback now costs nothing (the path already
+ * returns undefined in production) and means that change stays a config change
+ * instead of an unmetered billing leak.
+ *
+ * The dev hatch is kept: with NIMBUS_SSO_DISABLED there are no sessions at all,
+ * so a container key is the only way to run Builder locally.
  */
 export function getNimbusApiKey(env: NimbusEnv, session?: NimbusSession | null): string | undefined {
   const embedded = session?.payload?.nimbus_key;
@@ -218,7 +260,11 @@ export function getNimbusApiKey(env: NimbusEnv, session?: NimbusSession | null):
     return embedded;
   }
 
-  return getEnvVal(env, 'NIMBUS_API_KEY');
+  if (isNimbusSsoDisabled(env)) {
+    return getEnvVal(env, 'NIMBUS_API_KEY');
+  }
+
+  return undefined;
 }
 
 /** Upstream Nimbus OpenAI-compatible base URL (no trailing slash). */
@@ -254,7 +300,7 @@ export const NIMBUS_SESSION_AUD = 'builder-session';
 export async function mintNimbusSessionToken(
   payload: NimbusJwtPayload,
   secret: string,
-  ttlSeconds = 60 * 60 * 24 * 7,
+  ttlSeconds = NIMBUS_COOKIE_MAX_AGE_SECONDS,
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const key = new TextEncoder().encode(secret);
@@ -444,4 +490,137 @@ export async function fetchCustomerApiKey(
     console.error('[nimbus-sso] chat-key request failed:', String(e));
     return undefined;
   }
+}
+
+/**
+ * Require a valid Nimbus builder session, or return a 401 Response.
+ *
+ * Returns `null` when the caller may proceed, and a ready-to-return `Response`
+ * when they may not — so a route guard reads:
+ *
+ *     const denied = await requireBuilderAuth(request, context);
+ *     if (denied) return denied;
+ *
+ * ── Why this exists ────────────────────────────────────────────────────────
+ * SSO was enforced in `_index.tsx`'s loader only, i.e. on the PAGE. Of the 35
+ * API routes, exactly one imported this module, so `POST /api/chat` and
+ * friends were reachable by anyone who skipped the page and called the route
+ * directly. Verified against production on 2026-08-06: an anonymous
+ * `POST /api/chat` returned 200 and streamed a progress event before failing
+ * on a missing key.
+ *
+ * It failed only because this container holds no provider credentials — the
+ * customer's key arrives in the session as `nimbus_key`, resolved once at SSO
+ * handoff. So the gap was not costing money on this deployment; it would start
+ * the moment anyone set NIMBUS_API_KEY or a provider key on the container,
+ * which is the obvious thing to do to make the Builder run standalone. Gating
+ * it now means that change stays a config change instead of becoming an
+ * unmetered inference endpoint.
+ *
+ * ── The dev hatch is preserved deliberately ────────────────────────────────
+ * `isNimbusSsoDisabled(env) || !secret` short-circuits, exactly as the page
+ * loader does. Local `pnpm dev` and CI run without a dashboard, and a
+ * container deployed without a shared secret must not hard-fail every route —
+ * it would take the Builder down rather than protect it. Production sets
+ * NIMBUS_SSO_SHARED_SECRET (verified present as secretRef `nimbus-sso-secret`)
+ * and does not set NIMBUS_SSO_DISABLED, so the hatch is closed there.
+ */
+export async function requireBuilderAuth(request: Request, context?: unknown): Promise<Response | null> {
+  const env = resolveNimbusEnv((context as any)?.cloudflare?.env);
+
+  // Explicit opt-out, for local `pnpm dev` and CI only.
+  if (isNimbusSsoDisabled(env)) {
+    return null;
+  }
+
+  /*
+   * Missing secret: fail CLOSED in production, open everywhere else.
+   *
+   * The first version of this failed open unconditionally, reasoning that a
+   * secretless container should degrade rather than 401 every route. PR #11
+   * (codex/builder-sso-fail-closed) argued the opposite and is right: on an
+   * AUTH control, "I could not verify" must not resolve to "allowed". Failing
+   * open is also silent — nobody would notice the Builder had become
+   * unauthenticated, which is the property that makes it dangerous.
+   *
+   * The availability worry behind the original choice was real though, so it
+   * is answered rather than dismissed: dev and CI keep the permissive path, so
+   * nothing local breaks, and production is the only place that hard-denies.
+   * Production genuinely has the secret (secretRef `nimbus-sso-secret`,
+   * verified 2026-08-06), so this changes nothing today — it only decides
+   * which way the failure goes on the day the mount breaks.
+   */
+  if (!getNimbusSharedSecret(env)) {
+    const isProduction = getEnvVal(env, 'NODE_ENV') === 'production';
+
+    if (!isProduction) {
+      return null;
+    }
+
+    return new Response(
+      JSON.stringify({ error: 'unauthorized', message: 'Builder SSO is not configured.' }),
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'WWW-Authenticate': 'Cookie realm="nimbus-builder"',
+        },
+      },
+    );
+  }
+
+  const session = await readNimbusSessionFromRequest(request, env);
+
+  if (session) {
+    return null;
+  }
+
+  return new Response(JSON.stringify({ error: 'unauthorized', message: 'Nimbus builder session required.' }), {
+    status: 401,
+    headers: {
+      'Content-Type': 'application/json',
+      // A denial must never be cached by an intermediary and then served to
+      // an authenticated caller, nor the reverse.
+      'Cache-Control': 'no-store',
+      'WWW-Authenticate': 'Cookie realm="nimbus-builder"',
+    },
+  });
+}
+
+/**
+ * An env whose NIMBUS_API_KEY is the CALLER's key, never the container's.
+ *
+ * The Builder's chat path hands `context.cloudflare.env` straight to the LLM
+ * provider, which resolves its credential via
+ * `getProviderBaseUrlAndKey({ serverEnv, defaultApiTokenKey: 'NIMBUS_API_KEY' })`.
+ * So the provider reads the container key directly and never consults
+ * `getNimbusApiKey` — meaning the per-customer delegation added for
+ * api.nimbus-proxy did not cover chat at all, and every customer's inference
+ * would bill to the operator once a container key existed.
+ *
+ * Rather than teach the provider about sessions, the env it is given is scoped
+ * first: the customer's own key if the session carries one, and the variable
+ * REMOVED otherwise. Removed rather than set to undefined, because
+ * `convertEnvToRecord` stringifies values and would turn undefined into the
+ * literal "undefined" — a truthy key that fails upstream with a confusing 401.
+ *
+ * With no key the provider raises its own "sign in so the Builder inherits
+ * your session" error, which is the correct outcome: refusing the request is
+ * better than silently charging someone else for it.
+ */
+export function scopeEnvToCustomer<T>(env: T, session?: NimbusSession | null): T {
+  // Generic so the caller's env type survives — api.chat hands the result
+  // straight to code typed against Cloudflare's `Env`, and narrowing it to
+  // NimbusEnv there would be a type error rather than a safety improvement.
+  const scoped = { ...(env as unknown as Record<string, unknown>) };
+  const key = getNimbusApiKey(resolveNimbusEnv(env), session);
+
+  if (key) {
+    scoped.NIMBUS_API_KEY = key;
+  } else {
+    delete scoped.NIMBUS_API_KEY;
+  }
+
+  return scoped as unknown as T;
 }

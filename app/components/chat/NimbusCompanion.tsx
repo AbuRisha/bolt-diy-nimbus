@@ -242,7 +242,7 @@ export default function NimbusCompanion({ state }: { state: CompanionState }) {
                 aria-expanded={expanded}
                 aria-label={`${copy.label}. Draggable Nimbus companion. Drag to move, use arrow keys to reposition, click to play, or double click for status.`}
                 title="Drag Nimbus anywhere"
-                className="absolute inset-x-0 top-0 h-[104px] w-[82px] cursor-inherit origin-bottom focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
+                className="absolute inset-x-0 top-0 h-[104px] w-[82px] cursor-inherit origin-bottom bg-transparent p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
                 initial={false}
                 animate={reduceMotion ? { opacity: 1 } : state === "error"
                   ? { x: [0, -3, 3, -2, 2, 0], y: [0, -hop, 0], rotate: [0, -3, 3, -2, 2, 0], scaleX: [pose.facing, pose.facing * 0.96, pose.facing], scaleY: [1, 1.02, 0.96, 1] }
@@ -251,6 +251,20 @@ export default function NimbusCompanion({ state }: { state: CompanionState }) {
               >
                 <span
                   aria-hidden="true"
+                  /*
+                   * Hidden with `hidden`, not just opacity-0.
+                   *
+                   * This is the CSS-drawn fallback robot, and its top stop is
+                   * rgba(224,247,255,.98) - effectively white. The mascot PNG on
+                   * top of it is RGBA with a real alpha channel (verified: 248x320,
+                   * colorType 6), so wherever the sprite is transparent this
+                   * gradient showed straight through and read as a white box
+                   * behind the pet.
+                   *
+                   * opacity-0 only hides it when onLoad has actually fired. Taking
+                   * it out of the paint entirely means a transparent sprite can
+                   * never have anything behind it, regardless of load timing.
+                   */
                   className={`absolute inset-[8px_4px_5px] flex items-center justify-center rounded-[45%_45%_38%_38%] border border-cyan-200/30 bg-[radial-gradient(circle_at_50%_28%,rgba(224,247,255,.98),rgba(126,177,255,.94)_42%,rgba(37,75,168,.96)_76%,rgba(5,20,58,.98))] shadow-[0_8px_18px_rgba(34,211,238,.22),inset_0_0_18px_rgba(255,255,255,.26)] transition-opacity duration-200 ${companionAssetStatus === "ready" ? "opacity-0" : "opacity-100"}`}
                 >
                   <span className="absolute left-[15%] top-[5%] h-[40%] w-[70%] rounded-[48%] bg-white/25 blur-[1px]" />

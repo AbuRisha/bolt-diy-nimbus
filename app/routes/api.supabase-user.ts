@@ -18,6 +18,7 @@ async function supabaseUserLoader({ request, context }: { request: Request; cont
       return json({ error: 'Supabase token not found' }, { status: 401 });
     }
 
+
     // Make server-side request to Supabase API
     const response = await fetch('https://api.supabase.com/v1/projects', {
       headers: {
@@ -77,6 +78,7 @@ async function supabaseUserLoader({ request, context }: { request: Request; cont
 }
 
 export const loader = withSecurity(supabaseUserLoader, {
+  requireAuth: true,
   rateLimit: true,
   allowedMethods: ['GET'],
 });
@@ -99,6 +101,21 @@ async function supabaseUserAction({ request, context }: { request: Request; cont
     if (!supabaseToken) {
       return json({ error: 'Supabase token not found' }, { status: 401 });
     }
+    /*
+     * Did this token come from the CALLER, or from the operator's env?
+     *
+     * The chain above is `caller cookie || server env`, so a caller who sends
+     * no token of their own silently borrows the operator's Supabase account.
+     * For read-through actions that is merely generous; for `get_api_keys` it
+     * is a disclosure, because that action returns project API keys including
+     * `service_role`, which bypasses row-level security.
+     *
+     * Gating the route behind a session does not fix this — a valid customer
+     * session is not entitlement to the operator's credential. Refusing only
+     * the server-env case keeps the legitimate flow working: a customer who
+     * connected their OWN Supabase still gets their own keys.
+     */
+    const tokenIsCallerSupplied = Boolean(apiKeys.VITE_SUPABASE_ACCESS_TOKEN);
 
     if (action === 'get_projects') {
       // Fetch user projects
@@ -149,6 +166,16 @@ async function supabaseUserAction({ request, context }: { request: Request; cont
     }
 
     if (action === 'get_api_keys') {
+      if (!tokenIsCallerSupplied) {
+        return json(
+          {
+            error: 'gone',
+            message: 'Project API keys are not returned using server-held credentials. Connect your own Supabase token.',
+          },
+          { status: 410 },
+        );
+      }
+
       const projectId = formData.get('projectId');
 
       if (!projectId) {

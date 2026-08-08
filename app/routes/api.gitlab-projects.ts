@@ -102,4 +102,4 @@ async function gitlabProjectsLoader({ request }: { request: Request }) {
   }
 }
 
-export const action = withSecurity(gitlabProjectsLoader);
+export const action = withSecurity(gitlabProjectsLoader, { requireAuth: true });

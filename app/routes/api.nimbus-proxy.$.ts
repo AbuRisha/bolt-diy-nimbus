@@ -7,6 +7,7 @@ import {
   resolveNimbusEnv,
 } from '~/lib/.server/nimbus-sso';
 import { createScopedLogger } from '~/utils/logger';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 const logger = createScopedLogger('api.nimbus-proxy');
 
@@ -76,8 +77,24 @@ async function handleProxy({ request, context, params }: ProxyArgs): Promise<Res
   const apiKey = getNimbusApiKey(env, session);
 
   if (!apiKey) {
-    logger.error('Missing NIMBUS_API_KEY (and no per-session key on JWT).');
-    return json({ error: 'nimbus_api_key_unavailable' }, 500);
+    /*
+     * The session carries no per-customer key. This is not a server fault and
+     * must not be answered with one: billing this request to the container key
+     * would charge the operator for a customer's inference, which is exactly
+     * the fallback removed from getNimbusApiKey.
+     *
+     * The fix is a fresh handoff — the dashboard resolves the customer's own
+     * key and embeds it when it mints the session — so say that.
+     */
+    logger.error('No per-customer key on the session; refusing to bill the operator key.');
+
+    return json(
+      {
+        error: 'nimbus_customer_key_required',
+        message: 'Your session has no Nimbus API key attached. Sign in again from the dashboard to refresh it.',
+      },
+      401,
+    );
   }
 
   const upstreamBase = getNimbusUpstreamBase(env);
@@ -153,6 +170,16 @@ function json(body: unknown, status: number, extraHeaders: Record<string, string
 }
 
 export async function loader(args: LoaderFunctionArgs) {
+  // Route-level auth — SSO lived in the page loader only, so calling this
+  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  {
+    const denied = await requireBuilderAuth(args.request, args.context);
+
+    if (denied) {
+      return denied;
+    }
+  }
+
   return handleProxy(args);
 }
 

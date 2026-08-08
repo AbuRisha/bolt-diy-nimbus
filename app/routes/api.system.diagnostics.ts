@@ -1,4 +1,5 @@
 import { json, type LoaderFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 /**
  * Diagnostic API for troubleshooting connection issues
@@ -12,6 +13,16 @@ interface AppContext {
 }
 
 export const loader: LoaderFunction = async ({ request, context }: LoaderFunctionArgs & { context: AppContext }) => {
+  // Route-level auth — SSO lived in the page loader only, so calling this
+  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  {
+    const denied = await requireBuilderAuth(request, context);
+
+    if (denied) {
+      return denied;
+    }
+  }
+
   // Get environment variables
   const envVars = {
     hasGithubToken: Boolean(process.env.GITHUB_ACCESS_TOKEN || context.env?.GITHUB_ACCESS_TOKEN),

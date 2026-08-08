@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunction } from '@remix-run/cloudflare';
 import { json } from '@remix-run/cloudflare';
+import { requireBuilderAuth } from '~/lib/.server/nimbus-sso';
 
 // Only import child_process if we're not in a Cloudflare environment
 let execSync: any;
@@ -264,7 +265,17 @@ const getDiskInfo = (): DiskInfo[] => {
   }
 };
 
-export const loader: LoaderFunction = async ({ request: _request }) => {
+export const loader: LoaderFunction = async ({ request, context }) => {
+  // Route-level auth — SSO lived in the page loader only, so calling this
+  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  {
+    const denied = await requireBuilderAuth(request, context);
+
+    if (denied) {
+      return denied;
+    }
+  }
+
   try {
     return json(getDiskInfo());
   } catch (error) {

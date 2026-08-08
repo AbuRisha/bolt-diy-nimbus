@@ -11,6 +11,7 @@
 import { generateText } from 'ai';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { createScopedLogger } from '~/utils/logger';
+import { isAllowedUrl, safeFetch } from '~/utils/url';
 
 /* Removed node:net + node:dns/promises — wrangler pages dev runtime in the
  * Nimbus Builder Docker container does not reliably expose these. SSRF
@@ -60,24 +61,46 @@ export function normalizeReferenceUrl(raw: string): URL | null {
   if (!/^https?:$/i.test(url.protocol)) return null;
   if (url.username || url.password) return null;
   if (url.port && url.port !== '80' && url.port !== '443') return null;
+
+  /*
+   * SSRF. This URL comes straight from `POST /api/plan { referenceUrl }`, and
+   * the body of whatever it points at is parsed and returned to the caller —
+   * so an unchecked target is a read primitive against anything the container
+   * can reach.
+   *
+   * The checks above are not that control: scheme, credentials and port say
+   * nothing about the destination, and port 80 is exactly where link-local and
+   * internal HTTP services live. Verified against production 2026-08-07 —
+   * `referenceUrl: http://example.com/` came back with the page title and
+   * headings extracted, and `http://127.0.0.1/` reported "did not respond",
+   * i.e. it was attempted and simply had nothing listening.
+   *
+   * This file predates `~/utils/url` and rolled its own fetch, which is why
+   * the earlier audit of `isAllowedUrl` callers missed it.
+   */
+  if (!isAllowedUrl(url.toString())) return null;
+
   return url;
 }
 
-async function safeFetch(url: URL, timeoutMs: number): Promise<Response | null> {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
+/*
+ * Renamed from `safeFetch`, which collided with the genuinely-safe one in
+ * `~/utils/url` — two functions, one name, opposite guarantees. This one only
+ * ever added a timeout; it used `redirect: 'follow'`, so even a validated URL
+ * could be bounced into internal space by a 302 and the check never re-ran.
+ *
+ * It now delegates to the checked implementation, which drives redirects with
+ * `redirect: 'manual'` and re-validates every hop.
+ */
+async function fetchReferenceWithTimeout(url: URL, timeoutMs: number): Promise<Response | null> {
   try {
-    const res = await fetch(url.toString(), {
-      signal: controller.signal,
+    return await safeFetch(url.toString(), {
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { 'User-Agent': 'NimbusBuilder-Research/1.0 (+https://nimbusapi.net)' },
-      redirect: 'follow',
     });
-    return res;
   } catch (err) {
     logger.warn(`fetch failed for ${url.hostname}`, err);
     return null;
-  } finally {
-    clearTimeout(t);
   }
 }
 
@@ -139,7 +162,10 @@ const SUMMARY_SYSTEM = `You produce compact JSON summaries of reference websites
 Keep the summary under 260 characters.`;
 
 async function summarizeDigest(
-  digest: Omit<ReferenceDigest, 'summary'>,
+  // Widened from Omit<..., 'summary'> to match what extractStructure actually
+  // produces. The body only does JSON.stringify(digest) and never reads `url`,
+  // so requiring it was a signature that described no real dependency.
+  digest: Omit<ReferenceDigest, 'url' | 'summary'>,
   serverEnv: Record<string, string>,
 ): Promise<string> {
   try {
@@ -182,7 +208,7 @@ export async function researchReference(
   const url = normalizeReferenceUrl(rawUrl);
   if (!url) return { ok: false, note: 'That URL is not valid or not http(s).' };
 
-  const res = await safeFetch(url, FETCH_TIMEOUT_MS);
+  const res = await fetchReferenceWithTimeout(url, FETCH_TIMEOUT_MS);
   if (!res || !res.ok) {
     return { ok: false, note: `Reference URL did not respond (status ${res?.status ?? 'unreachable'}).` };
   }

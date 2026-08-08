@@ -48,29 +48,6 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
   const env = resolveNimbusEnv((context as any)?.cloudflare?.env);
   const secret = getNimbusSharedSecret(env);
 
-  // TEMPORARY DIAGNOSTIC (2026-08-02). Remove once the SSO gate is confirmed on.
-  //
-  // The previous version console.log'd this and nothing appeared: wrangler
-  // buffers loader stdout under `pages dev`, and the az log stream kept dying
-  // on console encoding. So return it in the response instead - the one place
-  // guaranteed to reach us.
-  //
-  // This answers the last open question: are bindings reaching the loader at
-  // all, or arriving under a shape this code does not read? Everything else is
-  // already eliminated by test - edge caching (direct-to-container is
-  // identical), a prerendered index.html (none exists in build/client),
-  // NIMBUS_SSO_DISABLED, and the container command.
-  //
-  // Only KEY NAMES are exposed, never values.
-  const cfDiag = (context as any)?.cloudflare;
-  const nimbusDiag = {
-    contextKeys: Object.keys((context as any) ?? {}),
-    hasCloudflare: Boolean(cfDiag),
-    cloudflareKeys: cfDiag ? Object.keys(cfDiag) : null,
-    envKeyCount: cfDiag?.env ? Object.keys(cfDiag.env).length : null,
-    envKeys: cfDiag?.env ? Object.keys(cfDiag.env).slice(0, 40) : null,
-    secretResolved: Boolean(secret),
-  };
 
   // Escape hatch for local dev / CI. Also self-heals when the container was
   // deployed without a shared secret so the app doesn't hard-redirect-loop.
@@ -81,7 +58,6 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
         subject: null as string | null,
         email: null as string | null,
       },
-      nimbusDiag,
     });
   }
 
