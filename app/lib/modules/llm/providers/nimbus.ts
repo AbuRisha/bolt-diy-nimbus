@@ -44,7 +44,7 @@ export default class NimbusProvider extends BaseProvider {
    * Chat / completion catalog. This is the exact allowlist that renders in
    * the primary picker on the customer-facing hosted deployment.
    */
-  private chatModels: ModelInfo[] = [
+  private _chatModels: ModelInfo[] = [
     {
       name: 'anthropic/claude-sonnet-5',
       label: 'Claude Sonnet 5',
@@ -132,7 +132,7 @@ export default class NimbusProvider extends BaseProvider {
    * Image-generation catalog for the /image surface tab. Non-streaming — the
    * caller POSTs a prompt and expects one or more image URLs back.
    */
-  private imageModels: ModelInfo[] = [
+  private _imageModels: ModelInfo[] = [
     { name: 'openai/gpt-image-2', label: 'GPT Image 2', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
     {
       name: 'google/gemini-3.1-flash-image',
@@ -179,7 +179,7 @@ export default class NimbusProvider extends BaseProvider {
    * Video-generation catalog for the /video surface tab. ASYNC — the caller
    * submits a prompt, receives a job id, polls until the URL is ready.
    */
-  private videoModels: ModelInfo[] = [
+  private _videoModels: ModelInfo[] = [
     {
       name: 'google/veo-3.1-1080p-audio',
       label: 'Veo 3.1 1080p (audio)',
@@ -220,22 +220,22 @@ export default class NimbusProvider extends BaseProvider {
    * let the user accidentally send an image prompt to a chat model or vice
    * versa.
    */
-  staticModels: ModelInfo[] = this.chatModels;
+  staticModels: ModelInfo[] = this._chatModels;
 
   /**
    * All static entries across every modality — used by generic pickers that
    * want the full Nimbus roster and will filter themselves.
    */
   getAllStaticModels(): ModelInfo[] {
-    return [...this.chatModels, ...this.imageModels, ...this.videoModels];
+    return [...this._chatModels, ...this._imageModels, ...this._videoModels];
   }
 
   getImageModels(): ModelInfo[] {
-    return this.imageModels;
+    return this._imageModels;
   }
 
   getVideoModels(): ModelInfo[] {
-    return this.videoModels;
+    return this._videoModels;
   }
 
   async getDynamicModels(
@@ -277,7 +277,7 @@ export default class NimbusProvider extends BaseProvider {
        * The gateway's /v1/models IS the customer-facing catalog, so it is the
        * source of truth here rather than something to be filtered.
        *
-       * This previously intersected the response with `chatModels` and then
+       * This previously intersected the response with `_chatModels` and then
        * re-added any static entry the gateway had NOT returned. Both halves
        * were backwards, and together they produced exactly the picker the
        * owner reported on 2026-08-01: 15 models offered out of 55 served.
@@ -298,7 +298,7 @@ export default class NimbusProvider extends BaseProvider {
        * chat picker cannot offer a video or image model. /image and /video
        * read getImageModels() / getVideoModels() and are unaffected.
        */
-      const staticByName = new Map(this.chatModels.map((m) => [m.name, m]));
+      const staticByName = new Map(this._chatModels.map((m) => [m.name, m]));
 
       const models = res.data
         .filter((model) => {

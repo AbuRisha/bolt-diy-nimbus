@@ -131,7 +131,11 @@ export default function NimbusCompanion({ state }: { state: CompanionState }) {
 
   useEffect(() => {
     if (reduceMotion || !visible) {
-      return;
+      /*
+       * Explicit: this effect returns a cleanup on its normal path, so a bare
+       * `return` here makes the arrow inconsistent about returning a value.
+       */
+      return undefined;
     }
 
     const followPointer = (event: PointerEvent) => {
@@ -197,7 +201,7 @@ export default function NimbusCompanion({ state }: { state: CompanionState }) {
 
   useEffect(() => {
     if (reduceMotion || !visible) {
-      return;
+      return undefined;
     }
 
     const schedule = () => {

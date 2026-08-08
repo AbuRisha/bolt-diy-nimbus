@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
-import { toast } from 'react-toastify';
 
 const DEPLOY_OPTIONS = [
   {
