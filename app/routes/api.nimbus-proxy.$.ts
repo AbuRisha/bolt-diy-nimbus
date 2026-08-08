@@ -170,8 +170,10 @@ function json(body: unknown, status: number, extraHeaders: Record<string, string
 }
 
 export async function loader(args: LoaderFunctionArgs) {
-  // Route-level auth — SSO lived in the page loader only, so calling this
-  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  /*
+   * Route-level auth — SSO lived in the page loader only, so calling this
+   * route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+   */
   {
     const denied = await requireBuilderAuth(args.request, args.context);
 

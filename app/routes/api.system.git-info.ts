@@ -63,8 +63,10 @@ declare const __GIT_REPO_NAME: string;
  */
 
 export const loader: LoaderFunction = async ({ request, context }: LoaderFunctionArgs & { context: AppContext }) => {
-  // Route-level auth — SSO lived in the page loader only, so calling this
-  // route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+  /*
+   * Route-level auth — SSO lived in the page loader only, so calling this
+   * route directly skipped it. See requireBuilderAuth in lib/.server/nimbus-sso.
+   */
   {
     const denied = await requireBuilderAuth(request, context);
 

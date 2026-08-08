@@ -28,8 +28,10 @@ describe('isAllowedUrl — IPv6, which is where the real bypasses were', () => {
   });
 
   it('still allows public IPv6', () => {
-    // fe00:: is outside fe80::/10; 2606:: is ordinary global unicast. Blocking
-    // these would break legitimate fetches, which is the opposite failure.
+    /*
+     * fe00:: is outside fe80::/10; 2606:: is ordinary global unicast. Blocking
+     * these would break legitimate fetches, which is the opposite failure.
+     */
     expect(isAllowedUrl('http://[2606:4700::1111]/')).toBe(true);
     expect(isAllowedUrl('http://[fe00::1]/')).toBe(true);
   });
@@ -52,8 +54,11 @@ describe('isAllowedUrl — IPv4', () => {
   it('allows public addresses and hostnames', () => {
     expect(isAllowedUrl('http://example.com/')).toBe(true);
     expect(isAllowedUrl('https://8.8.8.8/')).toBe(true);
-    // 100.63 and 100.128 sit just outside CGNAT — an off-by-one here would
-    // silently block real hosts.
+
+    /*
+     * 100.63 and 100.128 sit just outside CGNAT — an off-by-one here would
+     * silently block real hosts.
+     */
     expect(isAllowedUrl('http://100.63.255.255/')).toBe(true);
     expect(isAllowedUrl('http://100.128.0.1/')).toBe(true);
   });
@@ -66,8 +71,10 @@ describe('isAllowedUrl — IPv4', () => {
   });
 
   it('already blocks alternate IPv4 encodings via URL normalisation', () => {
-    // Reported as bypasses; they are not. `new URL()` canonicalises each of
-    // these to 127.0.0.1 before the patterns run.
+    /*
+     * Reported as bypasses; they are not. `new URL()` canonicalises each of
+     * these to 127.0.0.1 before the patterns run.
+     */
     for (const u of ['http://2130706433/', 'http://0x7f000001/', 'http://0177.0.0.1/', 'http://127.1/']) {
       expect(isAllowedUrl(u), u).toBe(false);
     }
@@ -89,8 +96,10 @@ describe('safeFetch — the redirect hole', () => {
   };
 
   it('refuses a redirect that lands on internal space', async () => {
-    // The live shape: a public host answers 302 pointing at cloud metadata.
-    // Plain fetch would follow it and the guard would never run again.
+    /*
+     * The live shape: a public host answers 302 pointing at cloud metadata.
+     * Plain fetch would follow it and the guard would never run again.
+     */
     await withFetch(
       async () =>
         new Response(null, { status: 302, headers: { location: 'http://169.254.169.254/latest/meta-data/' } }),

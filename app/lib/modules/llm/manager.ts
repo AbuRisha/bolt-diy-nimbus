@@ -22,10 +22,13 @@ function resolveNimbusOnly(env: Record<string, string> = {}): boolean {
   }
 
   try {
-    // import.meta.env is inlined by Vite at build time — the NIMBUS_ONLY
-    // prefix is whitelisted in vite.config.ts so this value is present in
-    // the browser bundle when the deployment ships with NIMBUS_ONLY=true.
+    /*
+     * import.meta.env is inlined by Vite at build time — the NIMBUS_ONLY
+     * prefix is whitelisted in vite.config.ts so this value is present in
+     * the browser bundle when the deployment ships with NIMBUS_ONLY=true.
+     */
     const viteEnv = (import.meta as any)?.env;
+
     if (viteEnv?.NIMBUS_ONLY === 'true' || viteEnv?.VITE_NIMBUS_ONLY === 'true') {
       return true;
     }
@@ -53,11 +56,13 @@ export class LLMManager {
     } else if (Object.keys(env).length > 0) {
       LLMManager._instance._env = env;
 
-      // Registration is now UNCONDITIONAL — every provider always registers
-      // so code paths compile and the "Advanced — bring your own key" panel
-      // can reach them. The NIMBUS_ONLY flag no longer changes registration
-      // scope; the UI filters instead (see getPrimaryProviders /
-      // getAdvancedProviders below).
+      /*
+       * Registration is now UNCONDITIONAL — every provider always registers
+       * so code paths compile and the "Advanced — bring your own key" panel
+       * can reach them. The NIMBUS_ONLY flag no longer changes registration
+       * scope; the UI filters instead (see getPrimaryProviders /
+       * getAdvancedProviders below).
+       */
     }
 
     return LLMManager._instance;
@@ -126,6 +131,7 @@ export class LLMManager {
    */
   getPrimaryProviders(): BaseProvider[] {
     const all = this.getAllProviders();
+
     if (!this.isNimbusOnlyMode()) {
       return all;
     }
@@ -155,11 +161,13 @@ export class LLMManager {
    */
   hasServerApiKey(providerName: string): boolean {
     const provider = this._providers.get(providerName);
+
     if (!provider) {
       return false;
     }
 
     const tokenKey = provider.config?.apiTokenKey;
+
     if (!tokenKey) {
       return false;
     }
@@ -352,6 +360,7 @@ export class LLMManager {
   getDefaultProvider(): BaseProvider {
     if (this.isNimbusOnlyMode()) {
       const nimbus = this.getAllProviders().find((p) => p.isNimbus);
+
       if (nimbus) {
         return nimbus;
       }

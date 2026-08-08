@@ -76,6 +76,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
    */
   const pickerProviderList = React.useMemo(() => {
     const base = props.providerList || (PROVIDER_LIST as ProviderInfo[]);
+
     if (!NIMBUS_ONLY_MODE) {
       return base;
     }

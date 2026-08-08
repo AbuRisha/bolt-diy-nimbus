@@ -27,6 +27,7 @@ type NimbusAccount = {
 const usd = (n: number) =>
   `$${n.toLocaleString('en-US', {
     minimumFractionDigits: 2,
+
     /*
      * Builder requests cost fractions of a cent. Rounding everything to 2dp
      * would render real spend as "$0.00", which is indistinguishable from not

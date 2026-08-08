@@ -42,8 +42,10 @@ describe('normalizeReferenceUrl', () => {
   });
 
   it('still accepts public references, with and without a scheme', () => {
-    // The failure that matters in the other direction: over-blocking would
-    // silently break the "clone this vibe" flow for every legitimate URL.
+    /*
+     * The failure that matters in the other direction: over-blocking would
+     * silently break the "clone this vibe" flow for every legitimate URL.
+     */
     expect(normalizeReferenceUrl('https://example.com/')).not.toBeNull();
     expect(normalizeReferenceUrl('http://example.com/pricing')).not.toBeNull();
     expect(normalizeReferenceUrl('stripe.com')).not.toBeNull();

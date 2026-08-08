@@ -236,7 +236,7 @@ export default class NimbusProvider extends BaseProvider {
    * Chat / completion catalog. This is the exact allowlist that renders in
    * the primary picker on the customer-facing hosted deployment.
    */
-  private chatModels: ModelInfo[] = CHAT_CATALOG.map((m) => ({
+  private _chatModels: ModelInfo[] = CHAT_CATALOG.map((m) => ({
     name: m.id,
     label: m.label,
     provider: 'Nimbus',
@@ -248,7 +248,7 @@ export default class NimbusProvider extends BaseProvider {
    * Image-generation catalog for the /image surface tab. Non-streaming — the
    * caller POSTs a prompt and expects one or more image URLs back.
    */
-  private imageModels: ModelInfo[] = [
+  private _imageModels: ModelInfo[] = [
     /*
      * Only what the gateway can actually route, checked against its live
      * routing table on 2026-08-03.
@@ -279,7 +279,7 @@ export default class NimbusProvider extends BaseProvider {
    * Video-generation catalog for the /video surface tab. ASYNC — the caller
    * submits a prompt, receives a job id, polls until the URL is ready.
    */
-  private videoModels: ModelInfo[] = VIDEO_CATALOG.map((m) => ({
+  private _videoModels: ModelInfo[] = VIDEO_CATALOG.map((m) => ({
     name: m.id,
     label: m.label,
     provider: 'Nimbus',
@@ -294,22 +294,22 @@ export default class NimbusProvider extends BaseProvider {
    * let the user accidentally send an image prompt to a chat model or vice
    * versa.
    */
-  staticModels: ModelInfo[] = this.chatModels;
+  staticModels: ModelInfo[] = this._chatModels;
 
   /**
    * All static entries across every modality — used by generic pickers that
    * want the full Nimbus roster and will filter themselves.
    */
   getAllStaticModels(): ModelInfo[] {
-    return [...this.chatModels, ...this.imageModels, ...this.videoModels];
+    return [...this._chatModels, ...this._imageModels, ...this._videoModels];
   }
 
   getImageModels(): ModelInfo[] {
-    return this.imageModels;
+    return this._imageModels;
   }
 
   getVideoModels(): ModelInfo[] {
-    return this.videoModels;
+    return this._videoModels;
   }
 
   async getDynamicModels(
@@ -351,7 +351,7 @@ export default class NimbusProvider extends BaseProvider {
        * The gateway's /v1/models IS the customer-facing catalog, so it is the
        * source of truth here rather than something to be filtered.
        *
-       * This previously intersected the response with `chatModels` and then
+       * This previously intersected the response with `_chatModels` and then
        * re-added any static entry the gateway had NOT returned. Both halves
        * were backwards, and together they produced exactly the picker the
        * owner reported on 2026-08-01: 15 models offered out of 55 served.
@@ -381,13 +381,13 @@ export default class NimbusProvider extends BaseProvider {
        * human label. Prefixed entries are inserted first so an exact match
        * always wins over a suffix collision.
        */
-      const staticByName = new Map<string, (typeof this.chatModels)[number]>();
+      const staticByName = new Map<string, (typeof this._chatModels)[number]>();
 
-      for (const m of this.chatModels) {
+      for (const m of this._chatModels) {
         staticByName.set(m.name, m);
       }
 
-      for (const m of this.chatModels) {
+      for (const m of this._chatModels) {
         const bare = m.name.includes('/') ? m.name.slice(m.name.lastIndexOf('/') + 1) : m.name;
 
         if (!staticByName.has(bare)) {
@@ -430,9 +430,7 @@ export default class NimbusProvider extends BaseProvider {
          */
         .reduce<Array<NimbusModelsResponse['data'][number]>>((acc, model) => {
           const bare = model.id.includes('/') ? model.id.slice(model.id.lastIndexOf('/') + 1) : model.id;
-          const at = acc.findIndex(
-            (m) => (m.id.includes('/') ? m.id.slice(m.id.lastIndexOf('/') + 1) : m.id) === bare,
-          );
+          const at = acc.findIndex((m) => (m.id.includes('/') ? m.id.slice(m.id.lastIndexOf('/') + 1) : m.id) === bare);
 
           if (at === -1) {
             acc.push(model);

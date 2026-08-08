@@ -16,13 +16,16 @@ const logger = createScopedLogger('api.plan');
  * If mode === 'questions', render chip UI, collect answers, then call /api/chat.
  */
 export async function action({ context, request }: ActionFunctionArgs) {
-  // Route-level auth. SSO used to live only in the page loader, so calling
-  // this route directly skipped it entirely. See requireBuilderAuth.
+  /*
+   * Route-level auth. SSO used to live only in the page loader, so calling
+   * this route directly skipped it entirely. See requireBuilderAuth.
+   */
   const denied = await requireBuilderAuth(request, context);
 
   if (denied) {
     return denied;
   }
+
   if (request.method !== 'POST') {
     return json({ error: 'method_not_allowed' }, { status: 405 });
   }
@@ -40,15 +43,19 @@ export async function action({ context, request }: ActionFunctionArgs) {
       return json({ error: 'prompt_too_long' }, { status: 413 });
     }
 
-    // Through `unknown`: Cloudflare's `Env` is an interface with declared
-    // members, not an index signature, so TS rejects the direct assertion.
+    /*
+     * Through `unknown`: Cloudflare's `Env` is an interface with declared
+     * members, not an index signature, so TS rejects the direct assertion.
+     */
     const serverEnv = (context?.cloudflare?.env ?? {}) as unknown as Record<string, string>;
 
     // Optional reference URL research (Lovable "clone this vibe" flow)
     let referenceDigest: ReferenceDigest | null = null;
     let referenceNote: string | undefined;
+
     if (referenceUrl) {
       const research = await researchReference(referenceUrl, serverEnv);
+
       if (research.ok) {
         referenceDigest = research.digest;
       } else {
@@ -61,6 +68,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
     return json({ ...decision, referenceDigest, referenceNote });
   } catch (err) {
     logger.error('plan action failed', err);
+
     // Never block a build on classifier failure.
     return json({
       mode: 'build',

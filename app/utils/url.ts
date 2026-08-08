@@ -95,8 +95,10 @@ function isPrivateIpv6(bracketed: string): boolean {
     return true;
   }
 
-  // fe80::/10 — link-local. First byte 0xfe with the top two bits of the
-  // second byte clear, i.e. fe80 through febf.
+  /*
+   * fe80::/10 — link-local. First byte 0xfe with the top two bits of the
+   * second byte clear, i.e. fe80 through febf.
+   */
   if (/^fe[89ab][0-9a-f]?$/.test(firstHextet)) {
     return true;
   }
@@ -164,8 +166,10 @@ export async function safeFetch(input: string, init: RequestInit = {}, maxRedire
       return response;
     }
 
-    // Relative Locations are resolved against the hop we are on, then
-    // re-validated like any other target.
+    /*
+     * Relative Locations are resolved against the hop we are on, then
+     * re-validated like any other target.
+     */
     target = new URL(location, target).toString();
   }
 
