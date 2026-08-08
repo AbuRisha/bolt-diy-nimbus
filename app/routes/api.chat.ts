@@ -22,11 +22,13 @@ export async function action(args: ActionFunctionArgs) {
 
 const logger = createScopedLogger('api.chat');
 
-// Cookie parsing lives in one place: `app/lib/api/cookies.ts`. Every other
-// route (api.enhancer, api.llmcall, api.models, …) already imports from
-// there. Keeping a second parser in this file historically drifted from the
-// canonical implementation, so it was deleted — see
-// getApiKeysFromCookie / getProviderSettingsFromCookie imports above.
+/*
+ * Cookie parsing lives in one place: `app/lib/api/cookies.ts`. Every other
+ * route (api.enhancer, api.llmcall, api.models, …) already imports from
+ * there. Keeping a second parser in this file historically drifted from the
+ * canonical implementation, so it was deleted — see
+ * getApiKeysFromCookie / getProviderSettingsFromCookie imports above.
+ */
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
   const streamRecovery = new StreamRecoveryManager({

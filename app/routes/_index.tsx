@@ -44,8 +44,10 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
   const env = resolveNimbusEnv((context as any)?.cloudflare?.env);
   const secret = getNimbusSharedSecret(env);
 
-  // Escape hatch for local dev / CI. Also self-heals when the container was
-  // deployed without a shared secret so the app doesn't hard-redirect-loop.
+  /*
+   * Escape hatch for local dev / CI. Also self-heals when the container was
+   * deployed without a shared secret so the app doesn't hard-redirect-loop.
+   */
   if (isNimbusSsoDisabled(env) || !secret) {
     return json({
       nimbusSso: {
@@ -77,8 +79,10 @@ export async function loader({ context, request }: LoaderFunctionArgs) {
       });
     }
 
-    // A bad/expired token behaves like no token — fall through to the cookie
-    // check, then to the dashboard hand-off.
+    /*
+     * A bad/expired token behaves like no token — fall through to the cookie
+     * check, then to the dashboard hand-off.
+     */
   }
 
   // Step 2 — honor an existing signed cookie (either ours or the dashboard's).

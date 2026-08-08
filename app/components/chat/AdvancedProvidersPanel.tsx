@@ -65,10 +65,7 @@ export const AdvancedProvidersPanel: React.FC<AdvancedProvidersPanelProps> = ({
       </button>
 
       {isExpanded && (
-        <div
-          id="nimbus-advanced-providers-list"
-          className="mt-2 space-y-1 max-h-[280px] overflow-y-auto pr-1"
-        >
+        <div id="nimbus-advanced-providers-list" className="mt-2 space-y-1 max-h-[280px] overflow-y-auto pr-1">
           <p className="text-[11px] text-bolt-elements-textTertiary px-2 pb-1 leading-relaxed">
             Route requests through your own upstream key instead of the Nimbus catalog. Keys stay in your browser
             (scoped to <code>.nimbusapi.net</code>) and never touch the Nimbus billing pipeline.

@@ -12,12 +12,14 @@ import { generateText } from 'ai';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { createScopedLogger } from '~/utils/logger';
 
-/* Removed node:net + node:dns/promises — wrangler pages dev runtime in the
+/*
+ * Removed node:net + node:dns/promises — wrangler pages dev runtime in the
  * Nimbus Builder Docker container does not reliably expose these. SSRF
  * safety now depends solely on URL-parser normalization (reject non-http(s),
  * reject credentials, reject explicit ports). The Docker container is not
  * on any VNet with private services, so RFC1918 blocking here is defense
- * in depth rather than the primary control. */
+ * in depth rather than the primary control.
+ */
 
 const logger = createScopedLogger('research');
 
@@ -38,34 +40,56 @@ export type ReferenceDigest = {
   summary: string;
 };
 
-export type ResearchResult =
-  | { ok: true; digest: ReferenceDigest }
-  | { ok: false; note: string };
+export type ResearchResult = { ok: true; digest: ReferenceDigest } | { ok: false; note: string };
 
 // isPrivateAddress removed alongside node:net import — see file header note.
 
 export function normalizeReferenceUrl(raw: string): URL | null {
   const trimmed = String(raw || '').trim();
-  if (!trimmed) return null;
+
+  if (!trimmed) {
+    return null;
+  }
+
   const hierarchical = trimmed.match(/^([a-z][a-z0-9+.-]*):\/\//i);
-  if (hierarchical && !/^https?$/i.test(hierarchical[1])) return null;
+
+  if (hierarchical && !/^https?$/i.test(hierarchical[1])) {
+    return null;
+  }
+
   const opaque = trimmed.match(/^([a-z][a-z0-9+.-]*):(?!\/\/)(?!\d)/i);
-  if (opaque && !/^https?$/i.test(opaque[1])) return null;
+
+  if (opaque && !/^https?$/i.test(opaque[1])) {
+    return null;
+  }
+
   let url: URL;
+
   try {
     url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
   } catch {
     return null;
   }
-  if (!/^https?:$/i.test(url.protocol)) return null;
-  if (url.username || url.password) return null;
-  if (url.port && url.port !== '80' && url.port !== '443') return null;
+
+  if (!/^https?:$/i.test(url.protocol)) {
+    return null;
+  }
+
+  if (url.username || url.password) {
+    return null;
+  }
+
+  if (url.port && url.port !== '80' && url.port !== '443') {
+    return null;
+  }
+
   return url;
 }
 
 async function safeFetch(url: URL, timeoutMs: number): Promise<Response | null> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     const res = await fetch(url.toString(), {
       signal: controller.signal,
@@ -85,13 +109,15 @@ function extractStructure(html: string): Omit<ReferenceDigest, 'url' | 'summary'
   const clean = html.slice(0, MAX_BODY_BYTES);
   const pick = (re: RegExp): string[] =>
     Array.from(clean.matchAll(re))
-      .map((m) => String(m[1] || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
+      .map((m) =>
+        String(m[1] || '')
+          .replace(/<[^>]+>/g, '')
+          .replace(/\s+/g, ' ')
+          .trim(),
+      )
       .filter((s) => s.length > 0 && s.length <= 200);
 
-  const title = (clean.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 240);
+  const title = (clean.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').replace(/\s+/g, ' ').trim().slice(0, 240);
 
   const description =
     clean
@@ -100,10 +126,7 @@ function extractStructure(html: string): Omit<ReferenceDigest, 'url' | 'summary'
       .trim()
       .slice(0, 400) || '';
 
-  const headings = [
-    ...pick(/<h1[^>]*>([\s\S]*?)<\/h1>/gi),
-    ...pick(/<h2[^>]*>([\s\S]*?)<\/h2>/gi),
-  ].slice(0, 12);
+  const headings = [...pick(/<h1[^>]*>([\s\S]*?)<\/h1>/gi), ...pick(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)].slice(0, 12);
 
   const navItems = pick(/<nav[^>]*>([\s\S]*?)<\/nav>/gi).slice(0, 4);
 
@@ -144,7 +167,11 @@ async function summarizeDigest(
 ): Promise<string> {
   try {
     const provider = LLMManager.getInstance(serverEnv).getProvider(DIGEST_PROVIDER);
-    if (!provider) return '';
+
+    if (!provider) {
+      return '';
+    }
+
     const model = provider.getModelInstance({
       model: DIGEST_MODEL,
       serverEnv: serverEnv as unknown as Env,
@@ -161,6 +188,7 @@ async function summarizeDigest(
         return JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, ''));
       } catch {
         const m = text.match(/\{[\s\S]*\}/);
+
         try {
           return m ? JSON.parse(m[0]) : {};
         } catch {
@@ -168,31 +196,38 @@ async function summarizeDigest(
         }
       }
     })();
-    return String(parsed.summary || '').replace(/\s+/g, ' ').trim().slice(0, 260);
+
+    return String(parsed.summary || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 260);
   } catch (err) {
     logger.warn('summarizeDigest failed', err);
     return '';
   }
 }
 
-export async function researchReference(
-  rawUrl: string,
-  serverEnv: Record<string, string>,
-): Promise<ResearchResult> {
+export async function researchReference(rawUrl: string, serverEnv: Record<string, string>): Promise<ResearchResult> {
   const url = normalizeReferenceUrl(rawUrl);
-  if (!url) return { ok: false, note: 'That URL is not valid or not http(s).' };
+
+  if (!url) {
+    return { ok: false, note: 'That URL is not valid or not http(s).' };
+  }
 
   const res = await safeFetch(url, FETCH_TIMEOUT_MS);
+
   if (!res || !res.ok) {
     return { ok: false, note: `Reference URL did not respond (status ${res?.status ?? 'unreachable'}).` };
   }
 
   const ct = res.headers.get('content-type') || '';
+
   if (!/html/i.test(ct)) {
     return { ok: false, note: 'Reference URL is not an HTML page.' };
   }
 
   let html: string;
+
   try {
     const raw = await res.text();
     html = raw.slice(0, MAX_BODY_BYTES);

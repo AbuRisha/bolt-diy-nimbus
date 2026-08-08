@@ -31,6 +31,7 @@ function nimbusCookieAttributes(): Cookies.CookieAttributes {
   }
 
   const host = window.location.hostname;
+
   if (host === 'nimbusapi.net' || host.endsWith('.nimbusapi.net')) {
     attrs.domain = '.nimbusapi.net';
     attrs.secure = true;
@@ -100,8 +101,10 @@ export const APIKeyManager: React.FC<APIKeyManagerProps> = ({ provider, apiKey, 
     // Save to parent state
     setApiKey(tempKey);
 
-    // Save to cookies — scoped to .nimbusapi.net on prod so builder + chat
-    // share the same BYOK vault. See nimbusCookieAttributes().
+    /*
+     * Save to cookies — scoped to .nimbusapi.net on prod so builder + chat
+     * share the same BYOK vault. See nimbusCookieAttributes().
+     */
     const currentKeys = getApiKeysFromCookies();
     const newKeys = { ...currentKeys, [provider.name]: tempKey };
     Cookies.set('apiKeys', JSON.stringify(newKeys), nimbusCookieAttributes());
@@ -109,10 +112,13 @@ export const APIKeyManager: React.FC<APIKeyManagerProps> = ({ provider, apiKey, 
     setIsEditing(false);
   };
 
-  // Nimbus keys are managed server-side on the hosted product. When the env
-  // var is set (or the provider self-identifies as Nimbus), do not render
-  // the per-provider key prompt — customers never see "Not Set" on Nimbus.
+  /*
+   * Nimbus keys are managed server-side on the hosted product. When the env
+   * var is set (or the provider self-identifies as Nimbus), do not render
+   * the per-provider key prompt — customers never see "Not Set" on Nimbus.
+   */
   const isNimbus = (provider as any)?.isNimbus === true || provider?.name === 'Nimbus';
+
   if (isNimbus && (isEnvKeySet || !apiKey)) {
     return (
       <div className="flex items-center justify-between py-3 px-1">

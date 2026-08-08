@@ -96,9 +96,7 @@ export function DeployButton() {
                 <Dialog.Panel className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0d0f1a] p-6 shadow-2xl">
                   <div className="mb-5 flex items-start justify-between">
                     <div>
-                      <Dialog.Title className="text-base font-semibold text-white">
-                        Deploy your app
-                      </Dialog.Title>
+                      <Dialog.Title className="text-base font-semibold text-white">Deploy your app</Dialog.Title>
                       <p className="mt-0.5 text-sm text-white/50">
                         Sync files to your machine first, then pick a platform.
                       </p>
@@ -118,8 +116,7 @@ export function DeployButton() {
                       1
                     </span>
                     <div className="text-sm text-cyan-200/80">
-                      <span className="font-semibold text-cyan-300">Sync your files locally</span>
-                      {' '}— use the{' '}
+                      <span className="font-semibold text-cyan-300">Sync your files locally</span> — use the{' '}
                       <span className="rounded bg-white/10 px-1 py-0.5 font-mono text-[11px] text-white">Sync</span>{' '}
                       button in the toolbar to download all generated files to a folder on your machine.
                     </div>
@@ -141,7 +138,9 @@ export function DeployButton() {
                       >
                         <div className="mb-2 flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="text-base" style={{ color: opt.color }}>{opt.icon}</span>
+                            <span className="text-base" style={{ color: opt.color }}>
+                              {opt.icon}
+                            </span>
                             <span className="text-sm font-semibold text-white">{opt.label}</span>
                           </div>
                           <a
@@ -156,9 +155,7 @@ export function DeployButton() {
                         </div>
                         <p className="mb-3 text-[11px] text-white/50 leading-relaxed">{opt.description}</p>
                         <div className="flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-black/30 px-2.5 py-1.5">
-                          <code className="flex-1 truncate font-mono text-[11px] text-emerald-400">
-                            {opt.command}
-                          </code>
+                          <code className="flex-1 truncate font-mono text-[11px] text-emerald-400">{opt.command}</code>
                           <button
                             type="button"
                             onClick={() => copy(opt.command, opt.id)}
@@ -177,8 +174,8 @@ export function DeployButton() {
                   </div>
 
                   <p className="mt-4 text-[11px] text-white/30">
-                    Run the command above from the folder where you synced your files.
-                    Each platform’s CLI will guide you through authentication + deploy.
+                    Run the command above from the folder where you synced your files. Each platform’s CLI will guide
+                    you through authentication + deploy.
                   </p>
                 </Dialog.Panel>
               </Transition.Child>

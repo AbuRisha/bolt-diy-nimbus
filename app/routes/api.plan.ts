@@ -37,8 +37,10 @@ export async function action({ context, request }: ActionFunctionArgs) {
     // Optional reference URL research (Lovable "clone this vibe" flow)
     let referenceDigest: ReferenceDigest | null = null;
     let referenceNote: string | undefined;
+
     if (referenceUrl) {
       const research = await researchReference(referenceUrl, serverEnv);
+
       if (research.ok) {
         referenceDigest = research.digest;
       } else {
@@ -51,6 +53,7 @@ export async function action({ context, request }: ActionFunctionArgs) {
     return json({ ...decision, referenceDigest, referenceNote });
   } catch (err) {
     logger.error('plan action failed', err);
+
     // Never block a build on classifier failure.
     return json({
       mode: 'build',

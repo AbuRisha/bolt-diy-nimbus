@@ -45,21 +45,87 @@ export default class NimbusProvider extends BaseProvider {
    * the primary picker on the customer-facing hosted deployment.
    */
   private chatModels: ModelInfo[] = [
-    { name: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5', provider: 'Nimbus', maxTokenAllowed: 200000, modality: 'chat' },
-    { name: 'anthropic/claude-opus-4.8', label: 'Claude Opus 4.8', provider: 'Nimbus', maxTokenAllowed: 200000, modality: 'chat' },
-    { name: 'anthropic/claude-haiku-4.5', label: 'Claude Haiku 4.5', provider: 'Nimbus', maxTokenAllowed: 200000, modality: 'chat' },
-    { name: 'anthropic/claude-fable-5', label: 'Claude Fable 5', provider: 'Nimbus', maxTokenAllowed: 200000, modality: 'chat' },
-    { name: 'openai/gpt-5.4-mini', label: 'GPT-5.4 Mini', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
+    {
+      name: 'anthropic/claude-sonnet-5',
+      label: 'Claude Sonnet 5',
+      provider: 'Nimbus',
+      maxTokenAllowed: 200000,
+      modality: 'chat',
+    },
+    {
+      name: 'anthropic/claude-opus-4.8',
+      label: 'Claude Opus 4.8',
+      provider: 'Nimbus',
+      maxTokenAllowed: 200000,
+      modality: 'chat',
+    },
+    {
+      name: 'anthropic/claude-haiku-4.5',
+      label: 'Claude Haiku 4.5',
+      provider: 'Nimbus',
+      maxTokenAllowed: 200000,
+      modality: 'chat',
+    },
+    {
+      name: 'anthropic/claude-fable-5',
+      label: 'Claude Fable 5',
+      provider: 'Nimbus',
+      maxTokenAllowed: 200000,
+      modality: 'chat',
+    },
+    {
+      name: 'openai/gpt-5.4-mini',
+      label: 'GPT-5.4 Mini',
+      provider: 'Nimbus',
+      maxTokenAllowed: 128000,
+      modality: 'chat',
+    },
     { name: 'openai/gpt-5-codex', label: 'GPT-5 Codex', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
-    { name: 'openai/gpt-5.3-codex', label: 'GPT-5.3 Codex', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
+    {
+      name: 'openai/gpt-5.3-codex',
+      label: 'GPT-5.3 Codex',
+      provider: 'Nimbus',
+      maxTokenAllowed: 128000,
+      modality: 'chat',
+    },
     { name: 'openai/gpt-5.1', label: 'GPT-5.1', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
     { name: 'openai/o4-mini', label: 'o4-mini', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
-    { name: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
-    { name: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash', provider: 'Nimbus', maxTokenAllowed: 128000, modality: 'chat' },
+    {
+      name: 'deepseek/deepseek-v4-pro',
+      label: 'DeepSeek V4 Pro',
+      provider: 'Nimbus',
+      maxTokenAllowed: 128000,
+      modality: 'chat',
+    },
+    {
+      name: 'deepseek/deepseek-v4-flash',
+      label: 'DeepSeek V4 Flash',
+      provider: 'Nimbus',
+      maxTokenAllowed: 128000,
+      modality: 'chat',
+    },
     { name: 'moonshotai/kimi-k3', label: 'Kimi K3', provider: 'Nimbus', maxTokenAllowed: 200000, modality: 'chat' },
-    { name: 'moonshotai/kimi-k2.7-code', label: 'Kimi K2.7 Code', provider: 'Nimbus', maxTokenAllowed: 200000, modality: 'chat' },
-    { name: 'google/gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro Preview', provider: 'Nimbus', maxTokenAllowed: 1000000, modality: 'chat' },
-    { name: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash Preview', provider: 'Nimbus', maxTokenAllowed: 1000000, modality: 'chat' },
+    {
+      name: 'moonshotai/kimi-k2.7-code',
+      label: 'Kimi K2.7 Code',
+      provider: 'Nimbus',
+      maxTokenAllowed: 200000,
+      modality: 'chat',
+    },
+    {
+      name: 'google/gemini-3.1-pro-preview',
+      label: 'Gemini 3.1 Pro Preview',
+      provider: 'Nimbus',
+      maxTokenAllowed: 1000000,
+      modality: 'chat',
+    },
+    {
+      name: 'google/gemini-3-flash-preview',
+      label: 'Gemini 3 Flash Preview',
+      provider: 'Nimbus',
+      maxTokenAllowed: 1000000,
+      modality: 'chat',
+    },
   ];
 
   /**
@@ -68,15 +134,45 @@ export default class NimbusProvider extends BaseProvider {
    */
   private imageModels: ModelInfo[] = [
     { name: 'openai/gpt-image-2', label: 'GPT Image 2', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
-    { name: 'google/gemini-3.1-flash-image', label: 'Gemini 3.1 Flash Image', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
-    { name: 'midjourney-fast-imagine', label: 'Midjourney (fast /imagine)', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
+    {
+      name: 'google/gemini-3.1-flash-image',
+      label: 'Gemini 3.1 Flash Image',
+      provider: 'Nimbus',
+      maxTokenAllowed: 4096,
+      modality: 'image',
+    },
+    {
+      name: 'midjourney-fast-imagine',
+      label: 'Midjourney (fast /imagine)',
+      provider: 'Nimbus',
+      maxTokenAllowed: 4096,
+      modality: 'image',
+    },
     { name: 'grok-imagine-image', label: 'Grok Imagine', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
-    { name: 'grok-imagine-image-quality', label: 'Grok Imagine (Quality)', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
+    {
+      name: 'grok-imagine-image-quality',
+      label: 'Grok Imagine (Quality)',
+      provider: 'Nimbus',
+      maxTokenAllowed: 4096,
+      modality: 'image',
+    },
     { name: 'wan2.7-image', label: 'WAN 2.7 Image', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
     { name: 'Qwen-Image', label: 'Qwen Image', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
     { name: 'seedream-4.5', label: 'Seedream 4.5', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
-    { name: 'seedream-5.0-lite', label: 'Seedream 5.0 Lite', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
-    { name: 'seedream-5.0-pro', label: 'Seedream 5.0 Pro', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'image' },
+    {
+      name: 'seedream-5.0-lite',
+      label: 'Seedream 5.0 Lite',
+      provider: 'Nimbus',
+      maxTokenAllowed: 4096,
+      modality: 'image',
+    },
+    {
+      name: 'seedream-5.0-pro',
+      label: 'Seedream 5.0 Pro',
+      provider: 'Nimbus',
+      maxTokenAllowed: 4096,
+      modality: 'image',
+    },
   ];
 
   /**
@@ -84,10 +180,34 @@ export default class NimbusProvider extends BaseProvider {
    * submits a prompt, receives a job id, polls until the URL is ready.
    */
   private videoModels: ModelInfo[] = [
-    { name: 'google/veo-3.1-1080p-audio', label: 'Veo 3.1 1080p (audio)', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'video' },
-    { name: 'google/veo-3.1-720p-audio', label: 'Veo 3.1 720p (audio)', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'video' },
-    { name: 'google/veo-3.1-fast-720p-audio', label: 'Veo 3.1 Fast 720p (audio)', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'video' },
-    { name: 'google/veo-3-1080p-audio', label: 'Veo 3 1080p (audio)', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'video' },
+    {
+      name: 'google/veo-3.1-1080p-audio',
+      label: 'Veo 3.1 1080p (audio)',
+      provider: 'Nimbus',
+      maxTokenAllowed: 4096,
+      modality: 'video',
+    },
+    {
+      name: 'google/veo-3.1-720p-audio',
+      label: 'Veo 3.1 720p (audio)',
+      provider: 'Nimbus',
+      maxTokenAllowed: 4096,
+      modality: 'video',
+    },
+    {
+      name: 'google/veo-3.1-fast-720p-audio',
+      label: 'Veo 3.1 Fast 720p (audio)',
+      provider: 'Nimbus',
+      maxTokenAllowed: 4096,
+      modality: 'video',
+    },
+    {
+      name: 'google/veo-3-1080p-audio',
+      label: 'Veo 3 1080p (audio)',
+      provider: 'Nimbus',
+      maxTokenAllowed: 4096,
+      modality: 'video',
+    },
     { name: 'kling-v3-t2v', label: 'Kling v3 T2V', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'video' },
     { name: 'Wan2.6-T2V', label: 'WAN 2.6 T2V', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'video' },
     { name: 'viduq3-pro', label: 'Vidu Q3 Pro', provider: 'Nimbus', maxTokenAllowed: 4096, modality: 'video' },
@@ -102,8 +222,10 @@ export default class NimbusProvider extends BaseProvider {
    */
   staticModels: ModelInfo[] = this.chatModels;
 
-  /** All static entries across every modality — used by generic pickers that
-   * want the full Nimbus roster and will filter themselves. */
+  /**
+   * All static entries across every modality — used by generic pickers that
+   * want the full Nimbus roster and will filter themselves.
+   */
   getAllStaticModels(): ModelInfo[] {
     return [...this.chatModels, ...this.imageModels, ...this.videoModels];
   }
@@ -132,8 +254,10 @@ export default class NimbusProvider extends BaseProvider {
     const resolvedBase = baseUrl || this.config.baseUrl;
 
     if (!resolvedBase || !apiKey) {
-      // No key configured — fall back to the static chat catalog so the UI
-      // still renders something meaningful.
+      /*
+       * No key configured — fall back to the static chat catalog so the UI
+       * still renders something meaningful.
+       */
       return this.staticModels;
     }
 
@@ -149,29 +273,31 @@ export default class NimbusProvider extends BaseProvider {
 
       const res = (await response.json()) as NimbusModelsResponse;
 
-      // The gateway's /v1/models IS the customer-facing catalog, so it is the
-      // source of truth here rather than something to be filtered.
-      //
-      // This previously intersected the response with `chatModels` and then
-      // re-added any static entry the gateway had NOT returned. Both halves
-      // were backwards, and together they produced exactly the picker the
-      // owner reported on 2026-08-01: 15 models offered out of 55 served.
-      //
-      //   - intersecting meant a model could never appear unless it was
-      //     already hardcoded, so 35 live models — including the flagship
-      //     anthropic/claude-opus-5 — were unreachable from the UI;
-      //   - re-adding the difference meant a model could never disappear, so
-      //     anthropic/claude-fable-5 stayed in the picker after the upstream
-      //     stopped serving it and returned model_not_found on selection.
-      //
-      // The original comment justified the intersection as "never surface
-      // undisclosed models". That risk is real but it belongs upstream, and
-      // it is handled there: the gateway only advertises priced, routable,
-      // customer-facing ids.
-      //
-      // Media models are excluded by pricing type rather than by name so the
-      // chat picker cannot offer a video or image model. /image and /video
-      // read getImageModels() / getVideoModels() and are unaffected.
+      /*
+       * The gateway's /v1/models IS the customer-facing catalog, so it is the
+       * source of truth here rather than something to be filtered.
+       *
+       * This previously intersected the response with `chatModels` and then
+       * re-added any static entry the gateway had NOT returned. Both halves
+       * were backwards, and together they produced exactly the picker the
+       * owner reported on 2026-08-01: 15 models offered out of 55 served.
+       *
+       *   - intersecting meant a model could never appear unless it was
+       *     already hardcoded, so 35 live models — including the flagship
+       *     anthropic/claude-opus-5 — were unreachable from the UI;
+       *   - re-adding the difference meant a model could never disappear, so
+       *     anthropic/claude-fable-5 stayed in the picker after the upstream
+       *     stopped serving it and returned model_not_found on selection.
+       *
+       * The original comment justified the intersection as "never surface
+       * undisclosed models". That risk is real but it belongs upstream, and
+       * it is handled there: the gateway only advertises priced, routable,
+       * customer-facing ids.
+       *
+       * Media models are excluded by pricing type rather than by name so the
+       * chat picker cannot offer a video or image model. /image and /video
+       * read getImageModels() / getVideoModels() and are unaffected.
+       */
       const staticByName = new Map(this.chatModels.map((m) => [m.name, m]));
 
       const models = res.data
@@ -183,9 +309,12 @@ export default class NimbusProvider extends BaseProvider {
           const staticHit = staticByName.get(model.id);
           return {
             name: model.id,
-            // Static entries stay useful as presentation metadata: they carry
-            // the human label and real context window. Anything the gateway
-            // adds later still shows, just under its raw id until labelled.
+
+            /*
+             * Static entries stay useful as presentation metadata: they carry
+             * the human label and real context window. Anything the gateway
+             * adds later still shows, just under its raw id until labelled.
+             */
             label: staticHit?.label ?? model.id,
             provider: this.name,
             maxTokenAllowed: staticHit?.maxTokenAllowed ?? 128000,
@@ -193,9 +322,11 @@ export default class NimbusProvider extends BaseProvider {
           };
         });
 
-      // A gateway that answers with an empty list is far more likely to be
-      // misconfigured than to genuinely sell nothing, so keep the static
-      // catalog rather than render an empty picker.
+      /*
+       * A gateway that answers with an empty list is far more likely to be
+       * misconfigured than to genuinely sell nothing, so keep the static
+       * catalog rather than render an empty picker.
+       */
       return models.length > 0 ? models : this.staticModels;
     } catch (error) {
       logger.info(`${this.name}: /models fetch failed, using static catalog`, error);

@@ -26,11 +26,7 @@ export function Header() {
     >
       <div className="flex items-center gap-2 z-logo text-bolt-elements-textPrimary cursor-pointer">
         <div className="i-ph:sidebar-simple-duotone text-xl" />
-        <a
-          href="/"
-          className="flex items-center gap-2 group"
-          aria-label="Nimbus Builder"
-        >
+        <a href="/" className="flex items-center gap-2 group" aria-label="Nimbus Builder">
           <svg
             width="28"
             height="28"

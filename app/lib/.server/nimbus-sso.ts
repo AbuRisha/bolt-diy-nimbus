@@ -34,6 +34,7 @@ export type NimbusEnv = Record<string, string | undefined>;
 export type NimbusJwtPayload = JWTPayload & {
   sub?: string;
   email?: string;
+
   /** Optional per-user upstream API key baked into the token. */
   nimbus_key?: string;
 };
@@ -154,10 +155,7 @@ export async function verifyNimbusToken(token: string, secret: string): Promise<
   }
 }
 
-export async function readNimbusSessionFromRequest(
-  request: Request,
-  env: NimbusEnv,
-): Promise<NimbusSession | null> {
+export async function readNimbusSessionFromRequest(request: Request, env: NimbusEnv): Promise<NimbusSession | null> {
   const secret = getNimbusSharedSecret(env);
 
   if (!secret) {
